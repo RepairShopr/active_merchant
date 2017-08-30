@@ -1,13 +1,45 @@
 require 'test_helper'
 
 class RemoteElementTest < Test::Unit::TestCase
+  module NullProcessor
+    # The below table works with the following transaction types:
+    # CreditCardSale, CreditCardAuthorization, CreditCardCredit, CreditCardReturn, DebitCardSale and DebitCardReturn
+    CARD_CODED_VALUES = {
+      # code: Dollar Amount # [Express Response Code/Message], # Host Response Code/Message
+              approved:   100, # [0, 'APPROVED'],           # 000 / AP
+      partial_approved:  2305, # [5, 'PARTIAL APPROVED'],   # 010 / PARTIAL AP
+              declined:    20, # [20, 'DECLINED'],          # 007 / DECLINED
+          expired_card:    21, # [21, 'EXPIRED CARD'],      # 054 / EXPIRED CARD
+          duplicate_ap:    22, # [22, 'DUPLICATE AP'],      # 094 / AP DUP
+             duplicate:    23, # [23, 'DUPLICATE'],         # 094 / DUPLICATE
+          pick_up_card:    24, # [24, 'PICK UP CARD'],      # 004 / PICK UP CARD
+           call_issuer:    25, # [25, 'CALL ISSUER'],       # 002 / CALL ND
+             undefined:    90, # [90, 'UNDEFINED'],
+          invalid_data:   101, # [101, 'INVALID DATA'],
+       invalid_account:   102, # [102, 'INVALID ACCOUNT'],
+       invalid_request:   103, # [103, 'INVALID REQUEST'],
+           auth_failed:   104, # [104, 'AUTH FAILED'],
+           not_allowed:   105, # [105, 'NOT ALLOWED'],      # 058 / UNAUTH TRANS
+        out_of_balance:   120, # [120, 'OUT OF BALANCE'],   # 0NB / INV BAL/SETTL
+            comm_error:  1001, # [1001, 'COMM ERROR'],
+            host_error:  1002, # [1002, 'HOST ERROR'],
+                 error:  1009, # [1009, 'ERROR'],
+      balance_approved:  2306, # [0, 'APPROVED'],           # 000 / AP (Balance and Currency returned)
+      any_other_amount:  9999, # [0 / APPROVED],            # 000 / AP
+    }
+
+    def self.card_code_amount(symbol)
+      CARD_CODED_VALUES[symbol]
+    end
+  end
+
   def setup
     @gateway = ElementGateway.new(fixtures(:element))
 
-    @amount = 100
+    @amount = NullProcessor.card_code_amount(:approved)
     # Element lists certain amounts that can be used
     # for triggering certain results.
-    @declined_amount = 20
+    @declined_amount = NullProcessor.card_code_amount(:declined)
     @credit_card = credit_card('4000100011112224')
     @check = check
     @options = {
@@ -27,7 +59,7 @@ class RemoteElementTest < Test::Unit::TestCase
   end
 
   def test_failed_purchase
-    @amount = 20
+    @amount = NullProcessor.card_code_amount(:declined)
     response = @gateway.purchase(@amount, @credit_card, @options)
     assert_failure response
     assert_equal 'Declined', response.message
@@ -64,7 +96,7 @@ class RemoteElementTest < Test::Unit::TestCase
   end
 
   def test_failed_authorize
-    @amount = 20
+    @amount = NullProcessor.card_code_amount(:declined)
     response = @gateway.authorize(@amount, @credit_card, @options)
     assert_failure response
     assert_equal 'Declined', response.message
@@ -137,7 +169,11 @@ class RemoteElementTest < Test::Unit::TestCase
   def test_successful_verify
     response = @gateway.verify(@credit_card, @options)
     assert_success response
-    assert_match %r{Approved}, response.message
+    assert_match %r{Success}, response.message
+
+    response = @gateway.verify(@check, @options)
+    assert_success response
+    assert_match %r{Success}, response.message
   end
 
   def test_successful_store
@@ -174,5 +210,19 @@ class RemoteElementTest < Test::Unit::TestCase
     assert_scrubbed(@check.account_number, transcript)
     assert_scrubbed(@check.routing_number, transcript)
     assert_scrubbed(@gateway.options[:account_token], transcript)
+  end
+
+  def test_echeck_status
+    response = @gateway.purchase(@amount, @check, @options)
+    assert_success response
+    assert_equal 'Success', response.message
+
+    status_response = @gateway.query(response.authorization)
+    assert_success status_response
+    assert_equal 'Pending',status_response.query_items.first['transactionstatus']
+    assert_equal '10',status_response.query_items.first['transactionstatuscode']
+    assert_equal response.authorization.split("|").first, status_response.authorization
+    # some other check on a status that has changed
+
   end
 end
