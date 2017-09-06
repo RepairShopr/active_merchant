@@ -11,7 +11,8 @@ class ElementTest < Test::Unit::TestCase
       order_id: '1',
       billing_address: address,
       description: 'Store Purchase',
-      card_present_code: 'ManualKeyed'
+      # card_present_code: 'ManualKeyed', # 0/1/2/3 Default/Unknown/Present/NotPresent
+      card_input_code: 'ManualKeyed', # 0/1/2/3/4/5 Default/Unknown/MagstripeRead/ContactlessMagstripeRead/ManualKeyed/ManualKeyedMagstripeFailure
     }
   end
 
@@ -21,7 +22,7 @@ class ElementTest < Test::Unit::TestCase
     response = @gateway.purchase(@amount, @credit_card, @options)
     assert_success response
 
-    assert_equal '2005831886|100', response.authorization
+    assert_equal '2005831886|100|', response.authorization
   end
 
   def test_failed_purchase
@@ -37,7 +38,7 @@ class ElementTest < Test::Unit::TestCase
     response = @gateway.purchase(@amount, @check, @options)
     assert_success response
 
-    assert_equal '2005838412|100', response.authorization
+    assert_equal '2005838412|100|', response.authorization
   end
 
   def test_failed_purchase_with_echeck
@@ -53,7 +54,7 @@ class ElementTest < Test::Unit::TestCase
     response = @gateway.purchase(@amount, "payment-account-token-id", @options)
     assert_success response
 
-    assert_equal '2005838405|100', response.authorization
+    assert_equal '2005838405|100|', response.authorization
   end
 
   def test_failed_purchase_with_payment_account_token
@@ -69,7 +70,7 @@ class ElementTest < Test::Unit::TestCase
     response = @gateway.authorize(@amount, @credit_card, @options)
     assert_success response
     assert_equal 'Approved', response.message
-    assert_equal '2005832533|100', response.authorization
+    assert_equal '2005832533|100|', response.authorization
   end
 
   def test_failed_authorize
@@ -187,7 +188,7 @@ class ElementTest < Test::Unit::TestCase
 
     response = @gateway.purchase(@amount, @check, @options)
     assert_success response
-    assert_equal '2005838412|100', response.authorization
+    assert_equal '2005838412|100|', response.authorization
 
     response = @gateway.query(response.authorization)
     assert_success response

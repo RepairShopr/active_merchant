@@ -63,19 +63,28 @@ module ActiveMerchant #:nodoc:
       end
 
       def purchase(money, payment, options={})
-        action = payment.is_a?(Check) ? "CheckSale" : "CreditCardSale"
+        action = purchase_action(payment)
 
         request = build_soap_request do |xml|
           xml.send(action, xmlns: "https://transaction.elementexpress.com") do
             add_credentials(xml)
             add_payment_method(xml, payment)
             add_transaction(xml, money, options)
-            add_terminal(xml, options)
+
+            case action
+            when 'CreditCardSale'
+              add_card_terminal(xml, options)
+            when 'CheckSale'
+              add_check_terminal(xml, options)
+            else
+              raise NotImplementedError, "add terminal for #{action}"
+            end
+
             add_address(xml, options)
           end
         end
 
-        commit(action, request, money)
+        commit(action, request, amount: money)
       end
 
       def authorize(money, payment, options={})
@@ -84,12 +93,12 @@ module ActiveMerchant #:nodoc:
             add_credentials(xml)
             add_payment_method(xml, payment)
             add_transaction(xml, money, options)
-            add_terminal(xml, options)
+            add_card_terminal(xml, options)
             add_address(xml, options)
           end
         end
 
-        commit('CreditCardAuthorization', request, money)
+        commit('CreditCardAuthorization', request, amount: money)
       end
 
       def capture(money, authorization, options={})
@@ -100,11 +109,11 @@ module ActiveMerchant #:nodoc:
           xml.CreditCardAuthorizationCompletion(xmlns: "https://transaction.elementexpress.com") do
             add_credentials(xml)
             add_transaction(xml, money, options)
-            add_terminal(xml, options)
+            add_card_terminal(xml, options)
           end
         end
 
-        commit('CreditCardAuthorizationCompletion', request, money)
+        commit('CreditCardAuthorizationCompletion', request, amount: money)
       end
 
       def refund(money, authorization, options={})
@@ -115,11 +124,11 @@ module ActiveMerchant #:nodoc:
           xml.CreditCardReturn(xmlns: "https://transaction.elementexpress.com") do
             add_credentials(xml)
             add_transaction(xml, money, options)
-            add_terminal(xml, options)
+            add_card_terminal(xml, options)
           end
         end
 
-        commit('CreditCardReturn', request, money)
+        commit('CreditCardReturn', request, amount: money)
       end
 
       def credit(money, payment, options={})
@@ -128,11 +137,11 @@ module ActiveMerchant #:nodoc:
             add_credentials(xml)
             add_transaction(xml, money, options)
             add_payment_method(xml, payment)
-            add_terminal(xml, options)
+            add_card_terminal(xml, options)
           end
         end
 
-        commit('CreditCardCredit', request, money)
+        commit('CreditCardCredit', request, amount: money)
       end
 
       def void(authorization, options={})
@@ -143,11 +152,11 @@ module ActiveMerchant #:nodoc:
           xml.CreditCardReversal(xmlns: "https://transaction.elementexpress.com") do
             add_credentials(xml)
             add_transaction(xml, trans_amount, options)
-            add_terminal(xml, options)
+            add_card_terminal(xml, options)
           end
         end
 
-        commit('CreditCardReversal', request, trans_amount)
+        commit('CreditCardReversal', request, amount: trans_amount)
       end
 
       def store(payment, options = {})
@@ -160,7 +169,21 @@ module ActiveMerchant #:nodoc:
           end
         end
 
-        commit('PaymentAccountCreate', request, nil)
+        commit('PaymentAccountCreate', request, payment_account_type: payment_account_type(payment))
+      end
+
+      def unstore(authorization, options = {})
+        token, _, _ = split_authorization(authorization)
+        request = build_soap_request do |xml|
+          xml.PaymentAccountDelete(xmlns: "https://services.elementexpress.com") do
+            add_credentials(xml)
+            xml.paymentAccount do
+              xml.PaymentAccountID token
+            end
+          end
+        end
+
+        commit('PaymentAccountDelete', request)
       end
 
       def verify(credit_card, options={})
@@ -173,11 +196,11 @@ module ActiveMerchant #:nodoc:
               add_credentials(xml)
               add_payment_method(xml, credit_card)
               add_transaction(xml, 100, options)
-              add_terminal(xml, options)
+              add_card_terminal(xml, options)
               add_address(xml, options)
             end
           end
-          commit(action, request, credit_card)
+          commit(action, request) #, amount: credit_card)
         else
           # currently, Element only supports Credit, Debit, Check, and this adapter doesn't include Debit yet
           MultiResponse.run(:use_first_response) do |r|
@@ -213,7 +236,7 @@ module ActiveMerchant #:nodoc:
           end
         end
 
-        commit('TransactionQuery', request, transaction)
+        commit('TransactionQuery', request) #, transaction)
       end
 
       def supports_scrubbing?
@@ -370,17 +393,41 @@ module ActiveMerchant #:nodoc:
         end
       end
 
-      def add_terminal(xml, options)
+      def add_card_terminal(xml, options)
         xml.terminal do
           xml.TerminalID options[:terminal_id] || "01"
+
+          # Required for Credit*/Debit*
           xml.CardPresentCode options[:card_present_code] || "UseDefault"
           xml.CardholderPresentCode options[:cardholder_present_code] || "UseDefault"
           xml.CardInputCode options[:card_input_code] || "UseDefault"
           xml.CVVPresenceCode options[:cvv_presence_code] || "UseDefault"
           xml.TerminalCapabilityCode options[:terminal_capability_code] || "UseDefault"
           xml.TerminalEnvironmentCode options[:terminal_environment_code] || "UseDefault"
-          xml.TerminalType options[:terminal_type] || "Unknown"
           xml.MotoECICode options[:moto_eci_code] || "NonAuthenticatedSecureECommerceTransaction"
+
+          # Optional for CreditCardSale/CreditCardAuthorization
+          xml.TerminalType options[:terminal_type] || "Unknown"
+          if options[:terminal_encryption_format]
+            xml.TerminalEncryptionFormat options[:terminal_encryption_format]
+            xml.TerminalSerialNumber options[:terminal_serial_number]
+          end
+
+          # required for some processors, Credit, Debit, and Check
+          xml.LaneNumber options[:lane_number] if options[:lane_number]
+        end
+      end
+
+      def add_check_terminal(xml, options)
+        xml.terminal do
+          xml.TerminalID options[:terminal_id] || "01"
+
+          # For Check(Sale|Credit|Return). Not Check(Void|Reversal)
+          # 0/1/2/3/ => NotSpecified/FaceToFace/Phone/Internet
+          xml.ConsentCode options[:consent_code] if options[:consent_code]
+
+          # required for some processors, Credit, Debit, and Check
+          xml.LaneNumber options[:lane_number] if options[:lane_number]
         end
       end
 
@@ -554,14 +601,14 @@ module ActiveMerchant #:nodoc:
         end
       end
 
-      def commit(action, xml, amount)
+      def commit(action, xml, amount: nil, payment_account_type: nil)
         response = parse(ssl_post(url(action), xml, headers(action)))
 
         ElementResponse.new(
           success_from(response),
           message_from(response),
           response,
-          authorization: authorization_from(action, response, amount),
+          authorization: authorization_from(action, response, amount: amount, payment_account_type: payment_account_type),
           avs_result: success_from(response) ? avs_from(response) : nil,
           cvv_result: success_from(response) ? cvv_from(response) : nil,
           test: test?,
@@ -569,9 +616,10 @@ module ActiveMerchant #:nodoc:
         )
       end
 
-      def authorization_from(action, response, amount)
-        if response['transaction']
-          "#{response['transaction']['transactionid']}|#{amount}"
+      def authorization_from(action, response, options)
+        key = if response['transaction']
+          requires!(options, :amount)
+          response['transaction']['transactionid']
         elsif action == "TransactionQuery"
           # eg response['reportingdata'] && response['reportingdata']['items']
           # eg if action == "TransactionQuery"
@@ -579,6 +627,7 @@ module ActiveMerchant #:nodoc:
           items.first['transactionid'] if items.one?
         elsif response['paymentaccount']
           # eg if action == "PaymentAccountCreate" etc
+          requires!(options, :payment_account_type)
           response["paymentaccount"]["paymentaccountid"]
         elsif response['token']
           response['token']['tokenid']
@@ -586,6 +635,8 @@ module ActiveMerchant #:nodoc:
           # PaymentAccountDelete etc
           nil
         end
+
+        "#{key}|#{options[:amount]}|#{options[:payment_account_type]}"
       end
 
       def success_from(response)
@@ -643,7 +694,9 @@ module ActiveMerchant #:nodoc:
       end
 
       def split_authorization(authorization)
-        authorization.split("|")
+        # `amount` required for `void`. For compatablity, stays second
+        # `account_type` required for `purchase` from `store` (different actions for CreditCard/Check)
+        key, amount, account_type = authorization.split('|')
       end
 
       def build_soap_request
@@ -661,13 +714,54 @@ module ActiveMerchant #:nodoc:
         builder.to_xml
       end
 
-      def payment_account_type(payment)
-        if payment.is_a?(Check)
-          payment_account_type = payment.account_type
+      # Enum
+      PaymentAccountType = {
+        'CreditCard' => 0, 0 => 'CreditCard',
+        'Checking' => 1, 'checking' => 'Checking', 1 => 'Checking',
+        'Savings' => 2, 'savings' => 'Savings', 2 => 'Savings',
+        'ACH' => 3, 3 => 'ACH',
+        'Other' => 4, 4 => 'Other'
+      }
+      # PaymentAccount Class stores max-length-2 (so integer), but SOAP accepts full names
+
+      def purchase_action(payment)
+        case payment
+        when CreditCard
+          'CreditCardSale'
+        when Check
+          'CheckSale'
+        when String
+          _, _, type = split_authorization(payment)
+          case type
+          when 'CreditCard', nil
+            # be backwards-compatible and consider `nil` to be for a stored CreditCard
+            'CreditCardSale'
+          when 'Checking', 'Savings'
+            'CheckSale'
+          else
+            raise ArgumentError.new("Unable to determine action from #{type}")
+          end
         else
-          payment_account_type = "CreditCard"
+          raise ArgumentError.new("Unable to determine action from #{payment.class}")
         end
-        payment_account_type
+      end
+
+      def payment_account_type(payment)
+        case payment
+        when Check
+          case payment.account_type
+          when 'checking'
+            'Checking'
+          when 'savings'
+            'Savings'
+          else
+            raise 'Invalid Account Type for Element Gateway Check'
+          end
+        when CreditCard
+          'CreditCard'
+        else
+          'Other'
+        end
       end
 
       def url(action)

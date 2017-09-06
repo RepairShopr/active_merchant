@@ -121,6 +121,8 @@ module ActiveMerchant
       yield
     end
 
+    # Caution: it is currently common for tests to assert_scrubbed(cvv, transcript), but those three-or-four digits
+    # can exist in randomly (indeterminate) generated hex/token values. try word-boundary %r{\b#{cvv}\b} instead
     def assert_scrubbed(unexpected_value, transcript)
       regexp = (Regexp === unexpected_value ? unexpected_value : Regexp.new(Regexp.quote(unexpected_value.to_s)))
       refute_match regexp, transcript, "Expected the value to be scrubbed out of the transcript"

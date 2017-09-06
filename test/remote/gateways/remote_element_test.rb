@@ -46,7 +46,8 @@ class RemoteElementTest < Test::Unit::TestCase
       order_id: '1',
       billing_address: address,
       description: 'Store Purchase',
-      card_present_code: 'ManualKeyed'
+      # card_present_code: 'ManualKeyed', # 0/1/2/3 Default/Unknown/Present/NotPresent
+      card_input_code: 'ManualKeyed', # 0/1/2/3/4/5 Default/Unknown/MagstripeRead/ContactlessMagstripeRead/ManualKeyed/ManualKeyedMagstripeFailure
     }
   end
 
@@ -71,13 +72,22 @@ class RemoteElementTest < Test::Unit::TestCase
     assert_equal 'Success', response.message
   end
 
-  def test_successful_purchase_with_payment_account_token
+  def test_successful_purchase_with_credit_card_payment_account_token
     response = @gateway.store(@credit_card, @options)
     assert_success response
 
     response = @gateway.purchase(@amount, response.authorization, @options)
     assert_success response
     assert_equal 'Approved', response.message
+  end
+
+  def test_successful_purchase_with_check_payment_account_token
+    response = @gateway.store(@check, @options)
+    assert_success response
+
+    response = @gateway.purchase(@amount, response.authorization, @options)
+    assert_success response
+    assert_equal 'Success', response.message
   end
 
   def test_successful_purchase_with_shipping_address
@@ -182,6 +192,16 @@ class RemoteElementTest < Test::Unit::TestCase
     assert_match %r{PaymentAccount created}, response.message
   end
 
+  def test_successful_unstore
+    response = @gateway.store(@credit_card, @options)
+    assert_success response
+    assert_match %r{PaymentAccount created}, response.message
+
+    response = @gateway.unstore(response.authorization)
+    assert_success response
+    assert_match %r{PaymentAccount deleted}, response.message
+  end
+
   def test_invalid_login
     gateway = ElementGateway.new(account_id: '', account_token: '', application_id: '', acceptor_id: '', application_name: '', application_version: '')
 
@@ -197,7 +217,7 @@ class RemoteElementTest < Test::Unit::TestCase
     transcript = @gateway.scrub(transcript)
 
     assert_scrubbed(@credit_card.number, transcript)
-    assert_scrubbed(@credit_card.verification_value, transcript)
+    assert_scrubbed(%r{\b#{@credit_card.verification_value}\b}, transcript)
     assert_scrubbed(@gateway.options[:account_token], transcript)
   end
 
@@ -221,7 +241,7 @@ class RemoteElementTest < Test::Unit::TestCase
     assert_success status_response
     assert_equal 'Pending',status_response.query_items.first['transactionstatus']
     assert_equal '10',status_response.query_items.first['transactionstatuscode']
-    assert_equal response.authorization.split("|").first, status_response.authorization
+    assert_equal response.authorization.split("|").first, status_response.authorization.split("|").first
     # some other check on a status that has changed
 
   end
