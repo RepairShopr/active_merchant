@@ -51,6 +51,13 @@ class RemoteElementTest < Test::Unit::TestCase
     }
   end
 
+  def test_verify_credentials
+    assert @gateway.verify_credentials
+
+    gateway = ElementGateway.new(account_id: '1', account_token: '1', application_id: '1', acceptor_id: '1', application_name: '1', application_version: '1')
+    assert !gateway.verify_credentials
+  end
+
   def test_successful_purchase
     response = @gateway.purchase(@amount, @credit_card, @options)
     assert_success response
@@ -243,6 +250,21 @@ class RemoteElementTest < Test::Unit::TestCase
     assert_equal '10',status_response.query_items.first['transactionstatuscode']
     assert_equal response.authorization.split("|").first, status_response.authorization.split("|").first
     # some other check on a status that has changed
+  end
 
+  def test_query_invalid
+    # regression test for invalid TransactionId
+    response = @gateway.query("foo||")
+    assert_failure response
+  end
+
+  def test_query_no_results
+    # response = @gateway.query('2005831886||') # this id was generated 2015/12/01
+
+    response = @gateway.query('1||') # '1' is valid format TransactionId, but probably does not exist
+    # assert_success response # unclear whether 'No Records' *should* be a 'success' or 'failure'. current expectation is failure
+    assert_failure response
+
+    assert_equal [], response.query_items
   end
 end

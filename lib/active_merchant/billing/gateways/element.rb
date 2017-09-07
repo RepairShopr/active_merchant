@@ -45,7 +45,7 @@ module ActiveMerchant #:nodoc:
         '24'   => STANDARD_ERROR_CODE[:pickup_card], # Pick up card
         '25'   => STANDARD_ERROR_CODE[:call_issuer], # Referral / Call Issuer
         '30'   => STANDARD_ERROR_CODE[:foo], # Balance Not Available
-        '90'   => STANDARD_ERROR_CODE[:foo], # Not defined
+        '90'   => STANDARD_ERROR_CODE[:foo], # Not defined (Also "No Records")
         '101'  => STANDARD_ERROR_CODE[:foo], # Invalid data
         '102'  => STANDARD_ERROR_CODE[:foo], # Invalid account
         '103'  => STANDARD_ERROR_CODE[:foo], # Invalid request
@@ -186,6 +186,17 @@ module ActiveMerchant #:nodoc:
         commit('PaymentAccountDelete', request)
       end
 
+      def verify_credentials
+        request = build_soap_request do |xml |
+          xml.HealthCheck(xmlns: "https://transaction.elementexpress.com") do
+            add_credentials(xml)
+          end
+        end
+
+        response = commit('HealthCheck', request)
+        response.success?
+      end
+
       def verify(credit_card, options={})
         # Element has CreditCardAVSOnly (AddressVerificationService) and CheckVerification
         case credit_card
@@ -302,6 +313,11 @@ module ActiveMerchant #:nodoc:
         'ScheduledTaskRetry',               # Note Accessible through the Express Services Interface
         'TokenCreate',
         'TokenCreateWithTransID',
+      ]
+      SYSTEM_ACTIONS = %w[
+        HealthCheck
+        AccountTokenCreate
+        AccountTokenActivate
       ]
 
       # Element has slightly different definitions for returned AVS codes
@@ -593,6 +609,9 @@ module ActiveMerchant #:nodoc:
 
           # for now, assume a collection node is a pluralized of contents, and is homogeneous
           # ActiveSupport::Inflector.pluralize node_name
+          # It seems there are several Query actions that return Response.QueryData and Response.ReportingData,
+          #   containing xml in various formats, with only TransactionQuery returning Items>Item...
+          #   Also, if no results are returned, this algorithm returns `'items' => ''` instead of `'items' => []`
           if node.elements.first.name.downcase.pluralize == node_name
             node.elements.map {|n| down_hash(n) }
           else
@@ -620,10 +639,10 @@ module ActiveMerchant #:nodoc:
         key = if response['transaction']
           requires!(options, :amount)
           response['transaction']['transactionid']
-        elsif action == "TransactionQuery"
-          # eg response['reportingdata'] && response['reportingdata']['items']
-          # eg if action == "TransactionQuery"
+        elsif response['reportingdata'] && response['reportingdata']['items']
+          # eg if action == "TransactionQuery" and successful (malformed trans_id returns anonymous error)
           items = response['reportingdata']['items']
+          items = response['reportingdata']['items'] = [] if items == '' # hack a fix for empty-set for now
           items.first['transactionid'] if items.one?
         elsif response['paymentaccount']
           # eg if action == "PaymentAccountCreate" etc
@@ -659,7 +678,7 @@ module ActiveMerchant #:nodoc:
         '24' => 'Pick up card',
         '25' => 'Referral / Call Issuer',
         '30' => 'Balance Not Available',
-        '90' => 'Not defined',
+        '90' => 'Not defined / No Records',
         '101' => 'Invalid data',
         '102' => 'Invalid account',
         '103' => 'Invalid request',
@@ -777,6 +796,8 @@ module ActiveMerchant #:nodoc:
           :reporting
         when *SERVICE_ACTIONS
           :services
+        when *SYSTEM_ACTIONS
+          :transaction
         else
           raise 'unrecognized action'
         end
