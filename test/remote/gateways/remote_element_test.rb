@@ -54,8 +54,22 @@ class RemoteElementTest < Test::Unit::TestCase
   def test_verify_credentials
     assert @gateway.verify_credentials
 
-    gateway = ElementGateway.new(account_id: '1', account_token: '1', application_id: '1', acceptor_id: '1', application_name: '1', application_version: '1')
+    valid_creds = fixtures(:element)
+
+    # 'nonsense/is@here' => 'Invalid Account Token', '' => 'Invalid Request'
+    gateway = ElementGateway.new(valid_creds.merge(account_id: 'nonsense/is@here'))
     assert !gateway.verify_credentials
+    # if returns response: assert_equal 'Invalid AccountToken', response.message
+
+    # 'nonsense/is@here' => 'Invalid Account Token', '' => 'Invalid Request'
+    gateway = ElementGateway.new(valid_creds.merge(account_token: ''))
+    assert !gateway.verify_credentials
+    # if returns response: assert_equal 'Invalid AccountToken', response.message
+
+    # 'nonsense/is@here' => 'Invalid Account', '' => 'AcceptorID required'
+    gateway = ElementGateway.new(valid_creds.merge(acceptor_id: ''))
+    assert !gateway.verify_credentials
+    # if returns response: assert_equal 'Invalid Account', response.message
   end
 
   def test_successful_purchase
