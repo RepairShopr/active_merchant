@@ -461,7 +461,9 @@ module ActiveMerchant #:nodoc:
         xml.demandDepositAccount do
           xml.AccountNumber payment.account_number
           xml.RoutingNumber payment.routing_number
-          xml.DDAAccountType payment.account_type.capitalize
+
+          dda_at = dda_account_type(payment)
+          xml.DDAAccountType dda_at if dda_at
         end
       end
 
@@ -715,7 +717,7 @@ module ActiveMerchant #:nodoc:
       def split_authorization(authorization)
         # `amount` required for `void`. For compatablity, stays second
         # `account_type` required for `purchase` from `store` (different actions for CreditCard/Check)
-        key, amount, account_type = authorization.split('|')
+        _key, _amount, _account_type = authorization.split('|')
       end
 
       def build_soap_request
@@ -755,13 +757,13 @@ module ActiveMerchant #:nodoc:
           when 'CreditCard', nil
             # be backwards-compatible and consider `nil` to be for a stored CreditCard
             'CreditCardSale'
-          when 'Checking', 'Savings'
+          when 'Checking', 'Savings', 'ACH'
             'CheckSale'
           else
-            raise ArgumentError.new("Unable to determine action from #{type}")
+            raise ArgumentError.new("Unable to determine action from PaymentAccountType #{type}")
           end
         else
-          raise ArgumentError.new("Unable to determine action from #{payment.class}")
+          raise ArgumentError.new("Unable to determine action from Class #{payment.class}")
         end
       end
 
@@ -773,13 +775,26 @@ module ActiveMerchant #:nodoc:
             'Checking'
           when 'savings'
             'Savings'
+          when /ach/i, nil
+            'ACH'
           else
-            raise 'Invalid Account Type for Element Gateway Check'
+            raise ArgumentError, 'Invalid Account Type for Element Gateway Check'
           end
         when CreditCard
           'CreditCard'
         else
           'Other'
+        end
+      end
+
+      def dda_account_type(check)
+        case check.account_type
+        when 'checking'
+          'Checking'
+        when 'savings'
+          'Savings'
+        else
+          nil # ACH is not a 'DDAAccountType', so that attribute should be omitted
         end
       end
 
@@ -799,7 +814,7 @@ module ActiveMerchant #:nodoc:
         when *SYSTEM_ACTIONS
           :transaction
         else
-          raise 'unrecognized action'
+          raise ArgumentError, 'unrecognized action'
         end
       end
 

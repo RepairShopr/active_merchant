@@ -93,6 +93,26 @@ class RemoteElementTest < Test::Unit::TestCase
     assert_equal 'Success', response.message
   end
 
+  def test_successful_purchase_with_check_account_token
+    # A 'successful' `store` is meaningless if it can't then be used to `purchase`
+    # purchase-by-token depends on tracking PaymentAccountType in authorization (regression on adding ACH)
+
+    # 'ach' is not a valid check.account_type, but could be expected to and sort-of works as Enum for value nil
+    # account_type nil, meaning unset/unknown/not-needed. Element considers this 'ACH'
+
+    ['checking', 'savings', 'ach', nil].each do |account_type|
+      response = @gateway.store(check(account_type: account_type), @options)
+      assert_success response
+
+      # api specification says PaymentAccountType is not in the Response, however it is returned as 'CreditCard' always
+      # assert_equal 'Checking', response.params['paymentaccount']['paymentaccounttype']
+
+      response = @gateway.purchase(@amount, response.authorization, @options)
+      assert_success response
+      assert_equal 'Success', response.message, "failure for #{account_type}"
+    end
+  end
+
   def test_successful_purchase_with_credit_card_payment_account_token
     response = @gateway.store(@credit_card, @options)
     assert_success response
@@ -100,15 +120,6 @@ class RemoteElementTest < Test::Unit::TestCase
     response = @gateway.purchase(@amount, response.authorization, @options)
     assert_success response
     assert_equal 'Approved', response.message
-  end
-
-  def test_successful_purchase_with_check_payment_account_token
-    response = @gateway.store(@check, @options)
-    assert_success response
-
-    response = @gateway.purchase(@amount, response.authorization, @options)
-    assert_success response
-    assert_equal 'Success', response.message
   end
 
   def test_successful_purchase_with_shipping_address
