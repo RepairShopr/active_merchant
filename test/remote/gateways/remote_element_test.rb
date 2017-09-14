@@ -113,6 +113,31 @@ class RemoteElementTest < Test::Unit::TestCase
     end
   end
 
+  def test_various_check_transaction_status_with_null_processor
+    null_processor_amount_to_transaction_status = {
+      3333 => 'Returned',
+      3334 => 'Pending',
+      3335 => 'Queued',
+      3336 => 'Unknown',
+      3337 => 'Error',
+      3338 => 'Originated',
+      3339 => 'Settled',
+    }
+
+    stored_auth = @gateway.store(check(account_type: 'ach'), @options).authorization
+
+    null_processor_amount_to_transaction_status.each do |amount, status|
+      response = @gateway.purchase(amount, @check, @options)
+      assert_success response
+      assert_equal status, response.params['transaction']['transactionstatus']
+
+      response = @gateway.purchase(amount, stored_auth, @options)
+      assert_success response
+      assert_equal status, response.params['transaction']['transactionstatus']
+    end
+
+  end
+
   def test_successful_purchase_with_credit_card_payment_account_token
     response = @gateway.store(@credit_card, @options)
     assert_success response
@@ -276,6 +301,63 @@ class RemoteElementTest < Test::Unit::TestCase
     assert_equal response.authorization.split("|").first, status_response.authorization.split("|").first
     # some other check on a status that has changed
   end
+
+  def test_query_date_range
+    omit 'Currently (2017-09-14), the cert db has a 30 min delay on non-indexed values (id is indexed, time is not)'
+
+    # it is common to check all transactions from the last 7 or 10 days to update Check TransactionStatus,
+    # but for this test keep window narrow
+
+    time_begin = Time.now.utc - 10.seconds
+
+    response = @gateway.purchase(@amount, @check, @options)
+    assert_success response
+    first_id = response.authorization.split("|").first
+
+    response = @gateway.purchase(@amount, @check, @options)
+    assert_success response
+    second_id = response.authorization.split("|").first
+
+    time_end = Time.now.utc + 10.seconds
+
+    response = @gateway.query(nil, trans_date_time_begin: time_begin, trans_date_time_end: time_end)
+    assert_success response
+
+    found_transaction_ids = response.query_items.map {|qi| qi['transactionid']}
+    assert_include(found_transaction_ids, first_id)
+    assert_include(found_transaction_ids, second_id)
+  end
+
+  # This can evaluate the latency in TransactionQuery against non-indexed columns, eg time
+  # def test_query_latency
+  #   response = @gateway.purchase(@amount, @check, @options)
+  #   assert_success response
+  #   assert_equal 'Success', response.message
+  #   new_id = response.authorization.split("|").first
+  #
+  #   # <ExpressTransactionDate>20170914</ExpressTransactionDate>
+  #   # <ExpressTransactionTime>140001</ExpressTransactionTime>
+  #   # <TimeStamp>2017-09-14T13:59:57.717</TimeStamp>
+  #   response = @gateway.query(new_id)
+  #   assert_success response
+  #   timestamp = Time.parse(response.query_items.first['timestamp'] + "-0500")
+  #   tolerant_start = timestamp - 2.minutes
+  #   tolerant_end = timestamp + 2.minutes
+  #
+  #   puts tolerant_start
+  #   puts tolerant_end
+  #
+  #   i = 0
+  #   while true do
+  #     puts "#{Time.now} #{i += 1}"
+  #     response = @gateway.query(nil, trans_date_time_begin: tolerant_start, trans_date_time_end: tolerant_end)
+  #     assert_failure response
+  #     sleep(5)
+  #   end
+  #   status_response = @gateway.query(response.authorization)
+  #   assert_success status_response
+  #   assert_equal new_id, status_response.authorization.split("|").first
+  # end
 
   def test_query_invalid
     # regression test for invalid TransactionId

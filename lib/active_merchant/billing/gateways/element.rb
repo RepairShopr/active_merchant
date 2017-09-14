@@ -187,13 +187,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def verify_credentials
-        request = build_soap_request do |xml |
-          xml.HealthCheck(xmlns: "https://transaction.elementexpress.com") do
-            add_credentials(xml)
-          end
-        end
-
-        response = commit('HealthCheck', request)
+        response = health_check
         response.success?
       end
 
@@ -231,12 +225,20 @@ module ActiveMerchant #:nodoc:
         end
 
         # `requires!` does not support either-or keys
-        if options.key? :transaction_setup_id
+        if options.key? :trans_setup_id
           # if transaction_setup_id is included, all other query fields are ignored
           options = { transaction_setup_id: options[:transaction_setup_id] }
-        elsif !options.key?(:transaction_id) &&
-              !options.key?(:trans_id) &&
-              !(options.key?(:transaction_date_time_begin) && options.key?(:transaction_date_time_end))
+        elsif options.key?(:trans_id)
+          # limited to just TransactionID
+        elsif options.key?(:trans_date_time_begin) && options.key?(:trans_date_time_end)
+          # transactions within range
+          # Element expects these times in 'local' instead of UTC, which is *probably* -05:00/ET
+          options[:express_timezone] ||= begin
+            response = health_check
+            needed_zone = response.params['expresstransactiontimezone']
+            /\AUTC(?<utc_offset>[+-]\d\d:\d\d).*\z/.match(needed_zone)[:utc_offset]
+          end
+        else
           raise ArgumentError, 'requires TransactionID or TransactionSetupID or both TransactionDateTimeBegin AND TransactionDateTimeEnd'
         end
 
@@ -248,6 +250,30 @@ module ActiveMerchant #:nodoc:
         end
 
         commit('TransactionQuery', request) #, transaction)
+      end
+
+      def check_statuses(options = {})
+        options[:trans_date_time_begin] ||= Time.now - 10.days
+        options[:trans_date_time_end] ||= Time.now
+
+        response = query(nil, options)
+        if response.success?
+          response.query_items.map do |item|
+            { trans_id: item['transactionid'], status: item['transactionstatus'], code: item['transactionstatuscode']}
+          end
+        else
+          []
+        end
+      end
+
+      def health_check
+        request = build_soap_request do |xml |
+          xml.HealthCheck(xmlns: "https://transaction.elementexpress.com") do
+            add_credentials(xml)
+          end
+        end
+
+        response = commit('HealthCheck', request)
       end
 
       def supports_scrubbing?
@@ -493,89 +519,46 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_parameters(xml, options)
-        parameter_fields = {
-            # Field / Value / Max Length / Description
-          transaction_date_time_begin: 'TransactionDateTimeBegin',
-            # 30 / Begin date/time of transaction range formatted [yyyy-MM-dd HH:mm:ss.fff]
-          transaction_date_time_end: 'TransactionDateTimeEnd',
-            # 30 / End date/time of transaction range formatted [yyyy-MM-dd HH:mm:ss.fff]
-          transaction_id: 'TransactionID',
-            # 10 / Unique transaction identifier
-          trans_id: 'TransactionID', # to be consistent with other methods
-          terminal_id: 'TerminalID',
-            # 40 / Unique terminal identifier
-          application_id: 'ApplicationID',
-            # 40 / Unique application identifier
-          approval_number: 'ApprovalNumber',
-            # 30 / Issuer assigned approval number
-          approved_amount: 'ApprovedAmount',
-            # 10 / Approved transaction amount
-          express_transaction_date: 'ExpressTransactionDate',
-            # 30 / Express transaction date formatted [YYYYMMDD]
-          express_transaction_time: 'ExpressTransactionTime',
-            # 30 / Express transaction time formatted [HHMMSS]
-          host_batch_id: 'HostBatchID',
-            # 25 / Unique host batch identifier
-          host_item_id: 'HostItemID',
-            # 25 / Unique host batch item identifier
-          host_reversal_queue_id: 'HostReversalQueueID',
-            # 25 / Reversal queue identifier
-          original_authorized_amount: 'OriginalAuthorizedAmount',
-            # 10 / Original dollar amount authorized
-          reference_number: 'ReferenceNumber',
-            # 50 / User defined reference number
-          shift_id: 'ShiftID',
-            # 10 / Shift identifier
-          source_transaction_id: 'SourceTransactionID',
-            # 10 / Unique transaction identifier from a previous transaction
-          terminal_type: 'TerminalType',
-            # 2 / Type of terminal
-          tracking_id: 'TrackingID',
-            # 60 / Internal transaction tracking identifier
-          transaction_amount: 'TransactionAmount',
-            # 12 / Dollar amount of transaction
-          transaction_setup_id: 'TransactionSetupID',
-            # GUID / 50 / Unique GUID that identifies the Transaction Setup ID. The Express Platform generates this.
-          transaction_status: 'TransactionStatus',
-            # 60 / Status of transaction
-          transaction_type: 'TransactionType',
-            # 60 / Type of transaction
-          xid: 'XID',
-            # 60 / Verify by Visa value
-          reverse_order: 'ReverseOrder',
-            # 2 / Flag to query records in descending order
-
-        }
-
         xml.parameters do
-          # # Field / Value / Max Length / Description
-          # xml.TransactionDateTimeBegin  # 30 / Begin date/time of transaction range formatted [yyyy-MM-dd HH:mm:ss.fff]
-          # xml.TransactionDateTimeEnd    # 30 / End date/time of transaction range formatted [yyyy-MM-dd HH:mm:ss.fff]
-          # xml.TransactionID             # 10 / Unique transaction identifier
-          # xml.TerminalID                # 40 / Unique terminal identifier
-          # xml.ApplicationID             # 40 / Unique application identifier
-          # xml.ApprovalNumber            # 30 / Issuer assigned approval number
-          # xml.ApprovedAmount            # 10 / Approved transaction amount
-          # xml.ExpressTransactionDate    # 30 / Express transaction date formatted [YYYYMMDD]
-          # xml.ExpressTransactionTime    # 30 / Express transaction time formatted [HHMMSS]
-          # xml.HostBatchID               # 25 / Unique host batch identifier
-          # xml.HostItemID                # 25 / Unique host batch item identifier
-          # xml.HostReversalQueueID       # 25 / Reversal queue identifier
-          # xml.OriginalAuthorizedAmount  # 10 / Original dollar amount authorized
-          # xml.ReferenceNumber           # 50 / User defined reference number
-          # xml.ShiftID                   # 10 / Shift identifier
-          # xml.SourceTransactionID       # 10 / Unique transaction identifier from a previous transaction
-          # xml.TerminalType              # 2 / Type of terminal
-          # xml.TrackingID                # 60 / Internal transaction tracking identifier
-          # xml.TransactionAmount         # 12 / Dollar amount of transaction
-          # xml.TransactionSetupID        # GUID / 50 / Unique GUID that identifies the Transaction Setup ID. The Express Platform generates this.
-          # xml.TransactionStatus         # 60 / Status of transaction
-          # xml.TransactionType           # 60 / Type of transaction
-          # xml.XID                       # 60 / Verify by Visa value
-          # xml.ReverseOrder              # 2 / Flag to query records in descending order
-          parameter_fields.each do |key, field|
-            xml.send(field, options[key]) if options.key?(key)
-          end
+
+          time_begin = format_date_time(options[:trans_date_time_begin], options)
+          xml.TransactionDateTimeBegin time_begin if time_begin # [yyyy-MM-dd HH:mm:ss.fff]
+          time_end = format_date_time(options[:trans_date_time_end], options)
+          xml.TransactionDateTimeEnd time_end if time_end # [yyyy-MM-dd HH:mm:ss.fff]
+
+          xml.TransactionID options[:trans_id] if options[:trans_id] # 10
+          xml.TerminalID options[:terminal_id] if options[:terminal_id] # 40
+          xml.ApplicationID options[:application_id] if options[:application_id] # 40
+          xml.ApprovalNumber options[:approval_number] if options[:approval_number] # 30
+          xml.ApprovedAmount options[:approved_amount] if options[:approved_amount] # 10
+
+          trans_date = format_date options[:express_trans_date]
+          xml.ExpressTransactionDate trans_date if trans_date  # [YYYYMMDD]
+          trans_time = format_time options[:express_trans_time]
+          xml.ExpressTransactionTime trans_time if trans_time # [HHMMSS]
+
+          xml.HostBatchID options[:host_batch_id] if options[:host_batch_id] # 25
+          xml.HostItemID options[:host_item_id] if options[:host_item_id] # 25
+          xml.HostReversalQueueID options[:host_reversal_queue_id] if options[:host_reversal_queue_id] # 25
+
+          xml.OriginalAuthorizedAmount options[:original_authorized_amount] if options[:original_authorized_amount] # 10
+          xml.ReferenceNumber options[:reference_number] if options[:reference_number] # 50
+          xml.ShiftID options[:shift_id] if options[:shift_id] # 10
+
+          xml.SourceTransactionID options[:source_transaction_id] if options[:source_transaction_id] # 10
+
+          xml.TerminalType options[:terminal_type] if options[:terminal_type] # 2
+          xml.TrackingID options[:tracking_id] if options[:tracking_id] # 60
+
+          xml.TransactionAmount options[:trans_amount] if options[:trans_amount] # 12
+          xml.TransactionSetupID options[:trans_setup_id] if options[:trans_setup_id] # GUID / 50
+          xml.TransactionStatus options[:trans_status] if options[:trans_status] # 60
+          xml.TransactionType options[:trans_type] if options[:trans_type] # 60
+
+          xml.XID options[:xid] if options[:xid] # 60 / Verify by Visa value
+
+          # Flag to query records in descending order
+          xml.ReverseOrder options[:reverse_order] if options[:reverse_order] # 2
         end
 
       end
@@ -796,6 +779,22 @@ module ActiveMerchant #:nodoc:
         else
           nil # ACH is not a 'DDAAccountType', so that attribute should be omitted
         end
+      end
+
+      def format_date_time(date_time, options)
+        # 30 / date/time of transaction range formatted [yyyy-MM-dd HH:mm:ss.fff]
+        date_time = date_time.localtime(options[:express_timezone]) if options[:express_timezone] && date_time.respond_to?(:strftime)
+        date_time.respond_to?(:strftime) ? date_time.strftime("%Y-%m-%d %H:%M:%S.%L") : date_time
+      end
+
+      def format_date(date)
+        # 30 / Express transaction date formatted [YYYYMMDD]
+        date.respond_to?(:strftime) ? date.strftime("%Y%m%d") : date
+      end
+
+      def format_time(time)
+        # 30 / Express transaction time formatted [HHMMSS]
+        time.respond_to?(:strftime) ? time.strftime("%H%M%S") : time
       end
 
       def url(action)
