@@ -431,7 +431,15 @@ module ActiveMerchant #:nodoc:
           xml.TransactionID options[:trans_id] if options[:trans_id]
           xml.TransactionAmount amount(money.to_i) if money
           xml.MarketCode (options[:market_code] || "Default") if money
+
+          # Element requires both ReferenceNumber AND TicketNumber (for keyed entry).
+          # I am uncertain which is a better fit for :order_id and which should be an extension
+
+          # ReferenceNumber 50 User defined reference number
           xml.ReferenceNumber options[:order_id] || SecureRandom.hex(20)
+
+          # TicketNumber 50 Used for Direct Marketing, MOTO, and E-Commerce transactions. Required when card number is manually keyed.
+          xml.TicketNumber options[:ticket_number] if options[:ticket_number]
         end
       end
 
@@ -496,24 +504,44 @@ module ActiveMerchant #:nodoc:
       def add_address(xml, options)
         if address = options[:billing_address] || options[:address]
           xml.address do
+            xml.BillingName address[:name] if address[:name]
+            # Element does not distinguish between :name and :company(name). perhaps join with "\nc/o "?
+
             xml.BillingAddress1 address[:address1] if address[:address1]
             xml.BillingAddress2 address[:address2] if address[:address2]
             xml.BillingCity address[:city] if address[:city]
             xml.BillingState address[:state] if address[:state]
             xml.BillingZipcode address[:zip] if address[:zip]
-            xml.BillingEmail address[:email] if address[:email]
-            xml.BillingPhone address[:phone_number] if address[:phone_number]
+            # Element does not currently support :country (ActiveMerchant un-modeled Address includes :country)
+
+            # ActiveMerchant specifies email in top-level `options`, but Element allows distinct Billing/Shipping emails
+            email = address[:email] || options[:email]
+            xml.BillingEmail email if email
+
+            # ActiveMerchant specifies phone number as :phone, but some devs may already be depending on :phone_number
+            phone = address[:phone] || address[:phone_number]
+            xml.BillingPhone phone if phone
           end
         end
         if shipping_address = options[:shipping_address]
           xml.address do
+            xml.ShippingName address[:name] if address[:name]
+            # Element does not distinguish between :name and :company(name). perhaps join with "\nc/o "?
+
             xml.ShippingAddress1 shipping_address[:address1] if shipping_address[:address1]
             xml.ShippingAddress2 shipping_address[:address2] if shipping_address[:address2]
             xml.ShippingCity shipping_address[:city] if shipping_address[:city]
             xml.ShippingState shipping_address[:state] if shipping_address[:state]
             xml.ShippingZipcode shipping_address[:zip] if shipping_address[:zip]
-            xml.ShippingEmail shipping_address[:email] if shipping_address[:email]
-            xml.ShippingPhone shipping_address[:phone_number] if shipping_address[:phone_number]
+            # Element does not currently support :country (ActiveMerchant un-modeled Address includes :country)
+
+            # ActiveMerchant specifies email in top-level `options`, but Element allows distinct Billing/Shipping emails
+            email = address[:email] || options[:email]
+            xml.ShippingEmail email if email
+
+            # ActiveMerchant specifies phone number as :phone, but some devs may already be depending on :phone_number
+            phone = address[:phone] || address[:phone_number]
+            xml.ShippingPhone phone if phone
           end
         end
       end
