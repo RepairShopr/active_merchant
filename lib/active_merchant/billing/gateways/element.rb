@@ -398,7 +398,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_payment_method(xml, payment)
-        if payment.is_a?(String)
+        if payment.is_a?(String) # if authorization string
           add_payment_account_id(xml, payment)
         elsif payment.is_a?(Check)
           add_echeck(xml, payment)
@@ -415,11 +415,13 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_payment_account_id(xml, payment)
+        payment_account_id, _, _ = split_authorization(payment)
+
         xml.extendedParameters do
           xml.ExtendedParameters do
             xml.Key "PaymentAccount"
             xml.Value("xsi:type" => "PaymentAccount") do
-              xml.PaymentAccountID payment
+              xml.PaymentAccountID payment_account_id
             end
           end
         end
@@ -648,6 +650,8 @@ module ActiveMerchant #:nodoc:
         )
       end
 
+      # build Serialized authorization string
+      # @return [String] in the format "<id>|<payment amount>|<type metadata, eg ACH/CreditCard>"
       def authorization_from(action, response, options)
         key = if response['transaction']
           requires!(options, :amount)
