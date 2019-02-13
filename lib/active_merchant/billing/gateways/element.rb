@@ -189,6 +189,8 @@ module ActiveMerchant #:nodoc:
       def verify_credentials
         response = health_check
         response.success?
+        # consider also verifying on services.elementexpress.com like
+        # && payment_account_query(payment_account_type: 0).success?
       end
 
       def verify(credit_card, options={})
@@ -264,6 +266,20 @@ module ActiveMerchant #:nodoc:
         else
           []
         end
+      end
+
+      # Query PaymentAccount (store'd payment profiles). Useful in particular because sometimes
+      # `health_check` on transaction.elementexpress.com returns SUCCESS, but
+      # services.elementexpress.com returns 102 Invalid Account
+      def payment_account_query(options)
+        request = build_soap_request do |xml|
+          xml.PaymentAccountQuery(xmlns: "https://services.elementexpress.com") do
+            add_credentials(xml)
+            add_payment_account_parameters(xml, options)
+          end
+        end
+
+        commit('PaymentAccountQuery', request)
       end
 
       def health_check
@@ -591,6 +607,35 @@ module ActiveMerchant #:nodoc:
           xml.ReverseOrder options[:reverse_order] if options[:reverse_order] # 2
         end
 
+      end
+
+      def add_payment_account_parameters(xml, options)
+        xml.PaymentAccountParameters do
+          xml.PaymentAccountID options[:payment_account_id] if options[:payment_account_id] # 50 GUID
+
+          # [0, 1, 2, 3, 4] => [CreditCard Checking Savings ACH Other]
+          xml.PaymentAccountType options[:payment_account_type] if options[:payment_account_type] # 2
+
+          xml.PaymentAccountReferenceNumber options[:reference_number] if options[:reference_number] # 50 UGC
+
+          # PaymentBrand = ['Visa', 'MasterCard', 'Discover', 'Amex', 'Diners Club']
+          xml.PaymentBrand options[:payment_brand] if options[:payment_brand] # 50
+
+          xml.ExpirationMonthBegin options[:expiration_month_begin] if options[:expiration_month_begin] # 2
+          xml.ExpirationMonthEnd options[:expiration_month_end] if options[:expiration_month_end] # 2
+          xml.ExpirationYearBegin options[:expiration_year_begin] if options[:expiration_year_begin] # 2
+          xml.ExpirationYearEnd options[:expiration_year_end] if options[:expiration_year_end] # 2
+
+          xml.TransactionSetupID options[:transaction_setup_id] if options[:transaction_setup_id] # 50 GUID
+
+          time_begin = format_date_time(options[:pass_updater_datetime_begin], options)
+          xml.PASSUpdaterDateTimeBegin time_begin if time_begin # 30 [yyyy-MM-dd HH:mm:ss.fff]
+          time_end = format_date_time(options[:pass_updater_datetime_begin], options)
+          xml.PASSUpdaterDateTimeEnd time_end if time_end # 30 [yyyy-MM-dd HH:mm:ss.fff]
+
+          xml.PASSUpdaterBatchStatus options[:pass_updater_batch_status] if options[:pass_updater_batch_status] # 2
+          xml.PASSUpdaterStatus options[:pass_updater_status] if options[:pass_updater_status] # 2
+        end
       end
 
       def parse(xml)
