@@ -10,6 +10,8 @@ module ActiveMerchant #:nodoc:
       end
     end
 
+    # seems Worldpay no longer uses 'Element' but still maintains an 'Express' API using
+    # the same urls and schema for a different backend
     class ElementGateway < Gateway
       # Alternatively, drop the 'express.asmx' to use XML instead of SOAP
       URLS = {
@@ -440,6 +442,13 @@ module ActiveMerchant #:nodoc:
               xml.PaymentAccountID payment_account_id
             end
           end
+        end
+
+        # This DDAAccountType *should* be irrelevant, but is somehow required as of ~ 2019/05/11
+        # on 2019/06/07 a Worldpay Integrated Payments, Developer Integrations Consultant, said to
+        # include DDAAccountType 'Checking', even for PaymentAccountID based CheckSale transactions
+        xml.demandDepositAccount do
+          xml.DDAAccountType 'Checking'
         end
       end
 
