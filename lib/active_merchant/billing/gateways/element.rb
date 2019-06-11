@@ -670,6 +670,36 @@ module ActiveMerchant #:nodoc:
         response
       end
 
+      # @param soap [String] SOAP string response for a server failure (HTTP 500 etc)
+      # @return [Hash] like {
+      #   "faultcode"=>"soap:Server",
+      #   "faultstring"=>"Server was unable to process request. ---> Nullable object must have a value.",
+      #   "detail"=>""
+      # }
+      def parse_failure(soap)
+        # <?xml version="1.0" encoding="utf-8"?>
+        # <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+        #   <soap:Body>
+        #     <soap:Fault>
+        #       <faultcode>soap:Server</faultcode>
+        #       <faultstring>Server was unable to process request. ---&gt; Nullable object must have a value.</faultstring>
+        #       <detail />
+        #     </soap:Fault>
+        #   </soap:Body>
+        # </soap:Envelope>
+        response = {}
+
+        doc = Nokogiri::XML(soap)
+        doc.remove_namespaces!
+        root = doc.root.xpath("//Fault/*")
+
+        root.each do |node|
+          response[node.name.downcase] = down_hash(node)
+        end
+
+        response
+      end
+
       def down_hash(node)
         if node.elements.empty?
           node.text
@@ -690,7 +720,22 @@ module ActiveMerchant #:nodoc:
       end
 
       def commit(action, xml, amount: nil, payment_account_type: nil)
-        response = parse(ssl_post(url(action), xml, headers(action)))
+        begin
+          soap = ssl_post(url(action), xml, headers(action))
+          response = parse(soap)
+        rescue ResponseError => ex
+          soap = ex.response.body
+          response = parse_failure(soap)
+          raise unless response.present?
+
+          return ElementResponse.new(
+              false,
+              response['faultstring'],
+              response,
+              test: test?,
+              error_code: response['faultcode']
+          )
+        end
 
         ElementResponse.new(
           success_from(response),
