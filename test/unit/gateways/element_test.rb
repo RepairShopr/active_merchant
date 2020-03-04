@@ -10,7 +10,9 @@ class ElementTest < Test::Unit::TestCase
     @options = {
       order_id: '1',
       billing_address: address,
-      description: 'Store Purchase'
+      description: 'Store Purchase',
+      # card_present_code: 'ManualKeyed', # 0/1/2/3 Default/Unknown/Present/NotPresent
+      card_input_code: 'ManualKeyed', # 0/1/2/3/4/5 Default/Unknown/MagstripeRead/ContactlessMagstripeRead/ManualKeyed/ManualKeyedMagstripeFailure
     }
   end
 
@@ -20,7 +22,7 @@ class ElementTest < Test::Unit::TestCase
     response = @gateway.purchase(@amount, @credit_card, @options)
     assert_success response
 
-    assert_equal '2005831886|100', response.authorization
+    assert_equal '2005831886|100|', response.authorization
   end
 
   def test_failed_purchase
@@ -36,7 +38,7 @@ class ElementTest < Test::Unit::TestCase
     response = @gateway.purchase(@amount, @check, @options)
     assert_success response
 
-    assert_equal '2005838412|100', response.authorization
+    assert_equal '2005838412|100|', response.authorization
   end
 
   def test_failed_purchase_with_echeck
@@ -52,7 +54,7 @@ class ElementTest < Test::Unit::TestCase
     response = @gateway.purchase(@amount, 'payment-account-token-id', @options)
     assert_success response
 
-    assert_equal '2005838405|100', response.authorization
+    assert_equal '2005838405|100|', response.authorization
   end
 
   def test_failed_purchase_with_payment_account_token
@@ -68,7 +70,7 @@ class ElementTest < Test::Unit::TestCase
     response = @gateway.authorize(@amount, @credit_card, @options)
     assert_success response
     assert_equal 'Approved', response.message
-    assert_equal '2005832533|100', response.authorization
+    assert_equal '2005832533|100|', response.authorization
   end
 
   def test_failed_authorize
@@ -111,6 +113,22 @@ class ElementTest < Test::Unit::TestCase
     assert_equal 'TransactionID required', response.message
   end
 
+  def test_successful_credit
+    @gateway.expects(:ssl_post).returns(successful_credit_response)
+
+    response = @gateway.credit(@amount, @credit_card)
+    assert_success response
+    assert_equal 'Approved', response.message
+  end
+
+  def test_failed_credit
+    @gateway.expects(:ssl_post).returns(failed_credit_response)
+
+    response = @gateway.credit(@amount, @credit_card)
+    assert_failure response
+    assert_equal 'Declined', response.message
+  end
+
   def test_successful_void
     @gateway.expects(:ssl_post).returns(successful_void_response)
 
@@ -128,18 +146,22 @@ class ElementTest < Test::Unit::TestCase
   end
 
   def test_successful_verify
-    @gateway.expects(:ssl_post).times(2).returns(successful_authorize_response, successful_void_response)
-
+    @gateway.expects(:ssl_post).returns(successful_credit_card_avs_response)
     response = @gateway.verify(@credit_card, @options)
+    assert_success response
+
+    @gateway.expects(:ssl_post).returns(successful_check_verification_response)
+    response = @gateway.verify(check, @options)
     assert_success response
   end
 
-  def test_successful_verify_with_failed_void
-    @gateway.expects(:ssl_post).times(2).returns(successful_authorize_response, failed_void_response)
-
-    response = @gateway.verify(@credit_card, @options)
-    assert_success response
-  end
+  # # This could be useful if Element adds other payment methods, or someone wants to condition AVSOnly
+  # def test_successful_verify_with_failed_void
+  #   @gateway.expects(:ssl_post).times(2).returns(successful_authorize_response, failed_void_response)
+  #
+  #   response = @gateway.verify(@credit_card, @options)
+  #   assert_success response
+  # end
 
   def test_failed_verify
     @gateway.expects(:ssl_post).returns(failed_authorize_response)
@@ -161,6 +183,18 @@ class ElementTest < Test::Unit::TestCase
     assert_equal @gateway.scrub(pre_scrubbed), post_scrubbed
   end
 
+  def test_query
+    @gateway.expects(:ssl_post).times(2).returns(successful_purchase_with_echeck_response, successful_query_response)
+
+    response = @gateway.purchase(@amount, @check, @options)
+    assert_success response
+    assert_equal '2005838412|100|', response.authorization
+
+    response = @gateway.query(response.authorization)
+    assert_success response
+    # this expected would be the same as above '2005838412' except the stub is from a different recording
+    assert_equal '2017580117', response.query_items.first['transactionid']
+  end
   private
 
   def pre_scrubbed
@@ -253,6 +287,18 @@ class ElementTest < Test::Unit::TestCase
     XML
   end
 
+  def successful_credit_response
+    <<-XML
+<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"><soap:Body><CreditCardCreditResponse xmlns="https://transaction.elementexpress.com"><response><ExpressResponseCode>0</ExpressResponseCode><ExpressResponseMessage>Approved</ExpressResponseMessage><ExpressTransactionDate>20151201</ExpressTransactionDate><ExpressTransactionTime>120437</ExpressTransactionTime><ExpressTransactionTimezone>UTC-05:00</ExpressTransactionTimezone><HostResponseCode>000</HostResponseCode><HostResponseMessage>AP</HostResponseMessage><Credentials /><Batch><BatchCloseType>Regular</BatchCloseType><BatchQueryType>Totals</BatchQueryType><HostBatchID>1</HostBatchID><HostItemID>99</HostItemID><HostBatchAmount>2963.00</HostBatchAmount><BatchGroupingCode>FullBatch</BatchGroupingCode><BatchIndexCode>Current</BatchIndexCode></Batch><Card><EncryptedFormat>Default</EncryptedFormat><CardLogo>Visa</CardLogo></Card><Transaction><TransactionID>2005832540</TransactionID><ApprovalNumber>000004</ApprovalNumber><ReversalType>System</ReversalType><MarketCode>Default</MarketCode><BillPaymentFlag>False</BillPaymentFlag><DuplicateCheckDisableFlag>False</DuplicateCheckDisableFlag><DuplicateOverrideFlag>False</DuplicateOverrideFlag><RecurringFlag>False</RecurringFlag><ProcessorName>NULL_PROCESSOR_TEST</ProcessorName><TransactionStatus>Approved</TransactionStatus><TransactionStatusCode>1</TransactionStatusCode><PartialApprovedFlag>False</PartialApprovedFlag><EMVEncryptionFormat>Default</EMVEncryptionFormat><ReversalReason>Unknown</ReversalReason></Transaction><PaymentAccount><PaymentAccountType>CreditCard</PaymentAccountType><PASSUpdaterBatchStatus>Null</PASSUpdaterBatchStatus><PASSUpdaterOption>Null</PASSUpdaterOption></PaymentAccount><Address><BillingAddress1>456 My Street</BillingAddress1><BillingZipcode>K1C2N6</BillingZipcode></Address><ScheduledTask><RunFrequency>OneTimeFuture</RunFrequency><RunUntilCancelFlag>False</RunUntilCancelFlag><ScheduledTaskStatus>Active</ScheduledTaskStatus></ScheduledTask><DemandDepositAccount><DDAAccountType>Checking</DDAAccountType><CheckType>Personal</CheckType></DemandDepositAccount><TransactionSetup><TransactionSetupMethod>Null</TransactionSetupMethod><Device>Null</Device><Embedded>False</Embedded><CVVRequired>False</CVVRequired><AutoReturn>False</AutoReturn><DeviceInputCode>NotUsed</DeviceInputCode></TransactionSetup><Terminal><TerminalType>Unknown</TerminalType><CardPresentCode>UseDefault</CardPresentCode><CardholderPresentCode>UseDefault</CardholderPresentCode><CardInputCode>UseDefault</CardInputCode><CVVPresenceCode>UseDefault</CVVPresenceCode><TerminalCapabilityCode>UseDefault</TerminalCapabilityCode><TerminalEnvironmentCode>UseDefault</TerminalEnvironmentCode><MotoECICode>UseDefault</MotoECICode><CVVResponseType>Regular</CVVResponseType><ConsentCode>NotUsed</ConsentCode><TerminalEncryptionFormat>Default</TerminalEncryptionFormat></Terminal><AutoRental><AutoRentalVehicleClassCode>Unused</AutoRentalVehicleClassCode><AutoRentalDistanceUnit>Unused</AutoRentalDistanceUnit><AutoRentalAuditAdjustmentCode>NoAdjustments</AutoRentalAuditAdjustmentCode></AutoRental><Healthcare><HealthcareFlag>False</HealthcareFlag><HealthcareFirstAccountType>NotSpecified</HealthcareFirstAccountType><HealthcareFirstAmountType>LedgerBalance</HealthcareFirstAmountType><HealthcareFirstAmountSign>Positive</HealthcareFirstAmountSign><HealthcareSecondAccountType>NotSpecified</HealthcareSecondAccountType><HealthcareSecondAmountType>LedgerBalance</HealthcareSecondAmountType><HealthcareSecondAmountSign>Positive</HealthcareSecondAmountSign><HealthcareThirdAccountType>NotSpecified</HealthcareThirdAccountType><HealthcareThirdAmountType>LedgerBalance</HealthcareThirdAmountType><HealthcareThirdAmountSign>Positive</HealthcareThirdAmountSign><HealthcareFourthAccountType>NotSpecified</HealthcareFourthAccountType><HealthcareFourthAmountType>LedgerBalance</HealthcareFourthAmountType><HealthcareFourthAmountSign>Positive</HealthcareFourthAmountSign></Healthcare><Lodging><LodgingPrestigiousPropertyCode>NonParticipant</LodgingPrestigiousPropertyCode><LodgingSpecialProgramCode>Default</LodgingSpecialProgramCode><LodgingChargeType>Default</LodgingChargeType></Lodging><BIN /><EnhancedBIN /><Token><TokenProvider>Null</TokenProvider></Token></response></CreditCardCreditResponse></soap:Body></soap:Envelope>
+    XML
+  end
+
+  def failed_credit_response
+    <<-XML
+<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"><soap:Body><CreditCardCreditResponse xmlns="https://transaction.elementexpress.com"><response><ExpressResponseCode>101</ExpressResponseCode><ExpressResponseMessage>Declined</ExpressResponseMessage><ExpressTransactionTimezone>UTC-05:00</ExpressTransactionTimezone><Credentials /><Batch><BatchCloseType>Regular</BatchCloseType><BatchQueryType>Totals</BatchQueryType><BatchGroupingCode>FullBatch</BatchGroupingCode><BatchIndexCode>Current</BatchIndexCode></Batch><Card><EncryptedFormat>Default</EncryptedFormat></Card><Transaction><ReversalType>System</ReversalType><MarketCode>Default</MarketCode><BillPaymentFlag>False</BillPaymentFlag><DuplicateCheckDisableFlag>False</DuplicateCheckDisableFlag><DuplicateOverrideFlag>False</DuplicateOverrideFlag><RecurringFlag>False</RecurringFlag><PartialApprovedFlag>False</PartialApprovedFlag><EMVEncryptionFormat>Default</EMVEncryptionFormat><ReversalReason>Unknown</ReversalReason></Transaction><PaymentAccount><PaymentAccountType>CreditCard</PaymentAccountType><PASSUpdaterBatchStatus>Null</PASSUpdaterBatchStatus><PASSUpdaterOption>Null</PASSUpdaterOption></PaymentAccount><Address /><ScheduledTask><RunFrequency>OneTimeFuture</RunFrequency><RunUntilCancelFlag>False</RunUntilCancelFlag><ScheduledTaskStatus>Active</ScheduledTaskStatus></ScheduledTask><DemandDepositAccount><DDAAccountType>Checking</DDAAccountType><CheckType>Personal</CheckType></DemandDepositAccount><TransactionSetup><TransactionSetupMethod>Null</TransactionSetupMethod><Device>Null</Device><Embedded>False</Embedded><CVVRequired>False</CVVRequired><AutoReturn>False</AutoReturn><DeviceInputCode>NotUsed</DeviceInputCode></TransactionSetup><Terminal><TerminalType>Unknown</TerminalType><CardPresentCode>UseDefault</CardPresentCode><CardholderPresentCode>UseDefault</CardholderPresentCode><CardInputCode>UseDefault</CardInputCode><CVVPresenceCode>UseDefault</CVVPresenceCode><TerminalCapabilityCode>UseDefault</TerminalCapabilityCode><TerminalEnvironmentCode>UseDefault</TerminalEnvironmentCode><MotoECICode>UseDefault</MotoECICode><CVVResponseType>Regular</CVVResponseType><ConsentCode>NotUsed</ConsentCode><TerminalEncryptionFormat>Default</TerminalEncryptionFormat></Terminal><AutoRental><AutoRentalVehicleClassCode>Unused</AutoRentalVehicleClassCode><AutoRentalDistanceUnit>Unused</AutoRentalDistanceUnit><AutoRentalAuditAdjustmentCode>NoAdjustments</AutoRentalAuditAdjustmentCode></AutoRental><Healthcare><HealthcareFlag>False</HealthcareFlag><HealthcareFirstAccountType>NotSpecified</HealthcareFirstAccountType><HealthcareFirstAmountType>LedgerBalance</HealthcareFirstAmountType><HealthcareFirstAmountSign>Positive</HealthcareFirstAmountSign><HealthcareSecondAccountType>NotSpecified</HealthcareSecondAccountType><HealthcareSecondAmountType>LedgerBalance</HealthcareSecondAmountType><HealthcareSecondAmountSign>Positive</HealthcareSecondAmountSign><HealthcareThirdAccountType>NotSpecified</HealthcareThirdAccountType><HealthcareThirdAmountType>LedgerBalance</HealthcareThirdAmountType><HealthcareThirdAmountSign>Positive</HealthcareThirdAmountSign><HealthcareFourthAccountType>NotSpecified</HealthcareFourthAccountType><HealthcareFourthAmountType>LedgerBalance</HealthcareFourthAmountType><HealthcareFourthAmountSign>Positive</HealthcareFourthAmountSign></Healthcare><Lodging><LodgingPrestigiousPropertyCode>NonParticipant</LodgingPrestigiousPropertyCode><LodgingSpecialProgramCode>Default</LodgingSpecialProgramCode><LodgingChargeType>Default</LodgingChargeType></Lodging><BIN /><EnhancedBIN /><Token><TokenProvider>Null</TokenProvider></Token></response></CreditCardCreditResponse></soap:Body></soap:Envelope>
+    XML
+  end
+
   def successful_void_response
     <<-XML
 <?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"><soap:Body><CreditCardReversalResponse xmlns="https://transaction.elementexpress.com"><response><ExpressResponseCode>0</ExpressResponseCode><ExpressResponseMessage>Success</ExpressResponseMessage><ExpressTransactionDate>20151201</ExpressTransactionDate><ExpressTransactionTime>120516</ExpressTransactionTime><ExpressTransactionTimezone>UTC-05:00</ExpressTransactionTimezone><HostResponseCode>006</HostResponseCode><HostResponseMessage>REVERSED</HostResponseMessage><Credentials /><Batch><BatchCloseType>Regular</BatchCloseType><BatchQueryType>Totals</BatchQueryType><BatchGroupingCode>FullBatch</BatchGroupingCode><BatchIndexCode>Current</BatchIndexCode></Batch><Card><EncryptedFormat>Default</EncryptedFormat><CardLogo>Visa</CardLogo></Card><Transaction><TransactionID>2005832551</TransactionID><ApprovalNumber>000005</ApprovalNumber><ReversalType>System</ReversalType><MarketCode>Default</MarketCode><AcquirerData>aVb001234567810425c0425d5e00</AcquirerData><BillPaymentFlag>False</BillPaymentFlag><DuplicateCheckDisableFlag>False</DuplicateCheckDisableFlag><DuplicateOverrideFlag>False</DuplicateOverrideFlag><RecurringFlag>False</RecurringFlag><ProcessorName>NULL_PROCESSOR_TEST</ProcessorName><TransactionStatus>Success</TransactionStatus><TransactionStatusCode>8</TransactionStatusCode><PartialApprovedFlag>False</PartialApprovedFlag><EMVEncryptionFormat>Default</EMVEncryptionFormat><ReversalReason>Unknown</ReversalReason></Transaction><PaymentAccount><PaymentAccountType>CreditCard</PaymentAccountType><PASSUpdaterBatchStatus>Null</PASSUpdaterBatchStatus><PASSUpdaterOption>Null</PASSUpdaterOption></PaymentAccount><Address /><ScheduledTask><RunFrequency>OneTimeFuture</RunFrequency><RunUntilCancelFlag>False</RunUntilCancelFlag><ScheduledTaskStatus>Active</ScheduledTaskStatus></ScheduledTask><DemandDepositAccount><DDAAccountType>Checking</DDAAccountType><CheckType>Personal</CheckType></DemandDepositAccount><TransactionSetup><TransactionSetupMethod>Null</TransactionSetupMethod><Device>Null</Device><Embedded>False</Embedded><CVVRequired>False</CVVRequired><AutoReturn>False</AutoReturn><DeviceInputCode>NotUsed</DeviceInputCode></TransactionSetup><Terminal><TerminalType>Unknown</TerminalType><CardPresentCode>UseDefault</CardPresentCode><CardholderPresentCode>UseDefault</CardholderPresentCode><CardInputCode>UseDefault</CardInputCode><CVVPresenceCode>UseDefault</CVVPresenceCode><TerminalCapabilityCode>UseDefault</TerminalCapabilityCode><TerminalEnvironmentCode>UseDefault</TerminalEnvironmentCode><MotoECICode>UseDefault</MotoECICode><CVVResponseType>Regular</CVVResponseType><ConsentCode>NotUsed</ConsentCode><TerminalEncryptionFormat>Default</TerminalEncryptionFormat></Terminal><AutoRental><AutoRentalVehicleClassCode>Unused</AutoRentalVehicleClassCode><AutoRentalDistanceUnit>Unused</AutoRentalDistanceUnit><AutoRentalAuditAdjustmentCode>NoAdjustments</AutoRentalAuditAdjustmentCode></AutoRental><Healthcare><HealthcareFlag>False</HealthcareFlag><HealthcareFirstAccountType>NotSpecified</HealthcareFirstAccountType><HealthcareFirstAmountType>LedgerBalance</HealthcareFirstAmountType><HealthcareFirstAmountSign>Positive</HealthcareFirstAmountSign><HealthcareSecondAccountType>NotSpecified</HealthcareSecondAccountType><HealthcareSecondAmountType>LedgerBalance</HealthcareSecondAmountType><HealthcareSecondAmountSign>Positive</HealthcareSecondAmountSign><HealthcareThirdAccountType>NotSpecified</HealthcareThirdAccountType><HealthcareThirdAmountType>LedgerBalance</HealthcareThirdAmountType><HealthcareThirdAmountSign>Positive</HealthcareThirdAmountSign><HealthcareFourthAccountType>NotSpecified</HealthcareFourthAccountType><HealthcareFourthAmountType>LedgerBalance</HealthcareFourthAmountType><HealthcareFourthAmountSign>Positive</HealthcareFourthAmountSign></Healthcare><Lodging><LodgingPrestigiousPropertyCode>NonParticipant</LodgingPrestigiousPropertyCode><LodgingSpecialProgramCode>Default</LodgingSpecialProgramCode><LodgingChargeType>Default</LodgingChargeType></Lodging><BIN /><EnhancedBIN /><Token><TokenProvider>Null</TokenProvider></Token></response></CreditCardReversalResponse></soap:Body></soap:Envelope>
@@ -262,6 +308,31 @@ class ElementTest < Test::Unit::TestCase
   def failed_void_response
     <<-XML
 <?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"><soap:Body><CreditCardReversalResponse xmlns="https://transaction.elementexpress.com"><response><ExpressResponseCode>101</ExpressResponseCode><ExpressResponseMessage>TransactionAmount required</ExpressResponseMessage><ExpressTransactionTimezone>UTC-05:00</ExpressTransactionTimezone><Credentials /><Batch><BatchCloseType>Regular</BatchCloseType><BatchQueryType>Totals</BatchQueryType><BatchGroupingCode>FullBatch</BatchGroupingCode><BatchIndexCode>Current</BatchIndexCode></Batch><Card><EncryptedFormat>Default</EncryptedFormat></Card><Transaction><ReversalType>System</ReversalType><MarketCode>Default</MarketCode><BillPaymentFlag>False</BillPaymentFlag><DuplicateCheckDisableFlag>False</DuplicateCheckDisableFlag><DuplicateOverrideFlag>False</DuplicateOverrideFlag><RecurringFlag>False</RecurringFlag><PartialApprovedFlag>False</PartialApprovedFlag><EMVEncryptionFormat>Default</EMVEncryptionFormat><ReversalReason>Unknown</ReversalReason></Transaction><PaymentAccount><PaymentAccountType>CreditCard</PaymentAccountType><PASSUpdaterBatchStatus>Null</PASSUpdaterBatchStatus><PASSUpdaterOption>Null</PASSUpdaterOption></PaymentAccount><Address /><ScheduledTask><RunFrequency>OneTimeFuture</RunFrequency><RunUntilCancelFlag>False</RunUntilCancelFlag><ScheduledTaskStatus>Active</ScheduledTaskStatus></ScheduledTask><DemandDepositAccount><DDAAccountType>Checking</DDAAccountType><CheckType>Personal</CheckType></DemandDepositAccount><TransactionSetup><TransactionSetupMethod>Null</TransactionSetupMethod><Device>Null</Device><Embedded>False</Embedded><CVVRequired>False</CVVRequired><AutoReturn>False</AutoReturn><DeviceInputCode>NotUsed</DeviceInputCode></TransactionSetup><Terminal><TerminalType>Unknown</TerminalType><CardPresentCode>UseDefault</CardPresentCode><CardholderPresentCode>UseDefault</CardholderPresentCode><CardInputCode>UseDefault</CardInputCode><CVVPresenceCode>UseDefault</CVVPresenceCode><TerminalCapabilityCode>UseDefault</TerminalCapabilityCode><TerminalEnvironmentCode>UseDefault</TerminalEnvironmentCode><MotoECICode>UseDefault</MotoECICode><CVVResponseType>Regular</CVVResponseType><ConsentCode>NotUsed</ConsentCode><TerminalEncryptionFormat>Default</TerminalEncryptionFormat></Terminal><AutoRental><AutoRentalVehicleClassCode>Unused</AutoRentalVehicleClassCode><AutoRentalDistanceUnit>Unused</AutoRentalDistanceUnit><AutoRentalAuditAdjustmentCode>NoAdjustments</AutoRentalAuditAdjustmentCode></AutoRental><Healthcare><HealthcareFlag>False</HealthcareFlag><HealthcareFirstAccountType>NotSpecified</HealthcareFirstAccountType><HealthcareFirstAmountType>LedgerBalance</HealthcareFirstAmountType><HealthcareFirstAmountSign>Positive</HealthcareFirstAmountSign><HealthcareSecondAccountType>NotSpecified</HealthcareSecondAccountType><HealthcareSecondAmountType>LedgerBalance</HealthcareSecondAmountType><HealthcareSecondAmountSign>Positive</HealthcareSecondAmountSign><HealthcareThirdAccountType>NotSpecified</HealthcareThirdAccountType><HealthcareThirdAmountType>LedgerBalance</HealthcareThirdAmountType><HealthcareThirdAmountSign>Positive</HealthcareThirdAmountSign><HealthcareFourthAccountType>NotSpecified</HealthcareFourthAccountType><HealthcareFourthAmountType>LedgerBalance</HealthcareFourthAmountType><HealthcareFourthAmountSign>Positive</HealthcareFourthAmountSign></Healthcare><Lodging><LodgingPrestigiousPropertyCode>NonParticipant</LodgingPrestigiousPropertyCode><LodgingSpecialProgramCode>Default</LodgingSpecialProgramCode><LodgingChargeType>Default</LodgingChargeType></Lodging><BIN /><EnhancedBIN /><Token><TokenProvider>Null</TokenProvider></Token></response></CreditCardReversalResponse></soap:Body></soap:Envelope>
+    XML
+  end
+
+  def successful_credit_card_avs_response
+    <<-XML
+<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"><soap:Body><CreditCardAVSOnlyResponse xmlns="https://transaction.elementexpress.com"><response><ExpressResponseCode>0</ExpressResponseCode><ExpressResponseMessage>Success</ExpressResponseMessage><ExpressTransactionDate>20170829</ExpressTransactionDate><ExpressTransactionTime>135617</ExpressTransactionTime><ExpressTransactionTimezone>UTC-05:00</ExpressTransactionTimezone><HostResponseCode>000</HostResponseCode><HostResponseMessage>AP</HostResponseMessage><Credentials /><Batch><BatchCloseType>Regular</BatchCloseType><BatchQueryType>Totals</BatchQueryType><BatchGroupingCode>FullBatch</BatchGroupingCode><BatchIndexCode>Current</BatchIndexCode></Batch><Card><EncryptedFormat>Default</EncryptedFormat><AVSResponseCode>N</AVSResponseCode><CardLogo>Visa</CardLogo></Card><Transaction><TransactionID>2017576150</TransactionID><ReferenceNumber>1</ReferenceNumber><ReversalType>System</ReversalType><MarketCode>Default</MarketCode><BillPaymentFlag>False</BillPaymentFlag><DuplicateCheckDisableFlag>False</DuplicateCheckDisableFlag><DuplicateOverrideFlag>False</DuplicateOverrideFlag><RecurringFlag>False</RecurringFlag><ProcessorName>NULL_PROCESSOR_TEST</ProcessorName><TransactionStatus>Success</TransactionStatus><TransactionStatusCode>8</TransactionStatusCode><PartialApprovedFlag>False</PartialApprovedFlag><EMVEncryptionFormat>Default</EMVEncryptionFormat><ReversalReason>Unknown</ReversalReason></Transaction><PaymentAccount><PaymentAccountType>CreditCard</PaymentAccountType><PASSUpdaterBatchStatus>Null</PASSUpdaterBatchStatus><PASSUpdaterOption>Null</PASSUpdaterOption></PaymentAccount><Address><BillingAddress1>456 My Street</BillingAddress1><BillingZipcode>K1C2N6</BillingZipcode></Address><ScheduledTask><RunFrequency>OneTimeFuture</RunFrequency><RunUntilCancelFlag>False</RunUntilCancelFlag><ScheduledTaskStatus>Active</ScheduledTaskStatus></ScheduledTask><DemandDepositAccount><DDAAccountType>Checking</DDAAccountType><CheckType>Personal</CheckType></DemandDepositAccount><TransactionSetup><TransactionSetupMethod>Null</TransactionSetupMethod><Device>Null</Device><Embedded>False</Embedded><CVVRequired>False</CVVRequired><AutoReturn>False</AutoReturn><DeviceInputCode>NotUsed</DeviceInputCode></TransactionSetup><Terminal><TerminalType>Unknown</TerminalType><CardPresentCode>UseDefault</CardPresentCode><CardholderPresentCode>UseDefault</CardholderPresentCode><CardInputCode>UseDefault</CardInputCode><CVVPresenceCode>UseDefault</CVVPresenceCode><TerminalCapabilityCode>UseDefault</TerminalCapabilityCode><TerminalEnvironmentCode>UseDefault</TerminalEnvironmentCode><MotoECICode>UseDefault</MotoECICode><CVVResponseType>Regular</CVVResponseType><ConsentCode>NotUsed</ConsentCode><TerminalEncryptionFormat>Default</TerminalEncryptionFormat></Terminal><AutoRental><AutoRentalVehicleClassCode>Unused</AutoRentalVehicleClassCode><AutoRentalDistanceUnit>Unused</AutoRentalDistanceUnit><AutoRentalAuditAdjustmentCode>NoAdjustments</AutoRentalAuditAdjustmentCode></AutoRental><Healthcare><HealthcareFlag>False</HealthcareFlag><HealthcareFirstAccountType>NotSpecified</HealthcareFirstAccountType><HealthcareFirstAmountType>LedgerBalance</HealthcareFirstAmountType><HealthcareFirstAmountSign>Positive</HealthcareFirstAmountSign><HealthcareSecondAccountType>NotSpecified</HealthcareSecondAccountType><HealthcareSecondAmountType>LedgerBalance</HealthcareSecondAmountType><HealthcareSecondAmountSign>Positive</HealthcareSecondAmountSign><HealthcareThirdAccountType>NotSpecified</HealthcareThirdAccountType><HealthcareThirdAmountType>LedgerBalance</HealthcareThirdAmountType><HealthcareThirdAmountSign>Positive</HealthcareThirdAmountSign><HealthcareFourthAccountType>NotSpecified</HealthcareFourthAccountType><HealthcareFourthAmountType>LedgerBalance</HealthcareFourthAmountType><HealthcareFourthAmountSign>Positive</HealthcareFourthAmountSign></Healthcare><Lodging><LodgingPrestigiousPropertyCode>NonParticipant</LodgingPrestigiousPropertyCode><LodgingSpecialProgramCode>Default</LodgingSpecialProgramCode><LodgingChargeType>Default</LodgingChargeType></Lodging><BIN /><EnhancedBIN /><Token><TokenProvider>Null</TokenProvider></Token></response></CreditCardAVSOnlyResponse></soap:Body></soap:Envelope>
+    XML
+  end
+
+  def successful_check_verification_response
+    <<-XML
+<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"><soap:Body><CheckVerificationResponse xmlns="https://transaction.elementexpress.com"><response><ExpressResponseCode>0</ExpressResponseCode><ExpressResponseMessage>Success</ExpressResponseMessage><ExpressTransactionDate>20170829</ExpressTransactionDate><ExpressTransactionTime>135617</ExpressTransactionTime><ExpressTransactionTimezone>UTC-05:00</ExpressTransactionTimezone><HostResponseCode>0</HostResponseCode><HostResponseMessage>Authorization Successful</HostResponseMessage><Credentials /><Batch><BatchCloseType>Regular</BatchCloseType><BatchQueryType>Totals</BatchQueryType><HostBatchID>1</HostBatchID><BatchGroupingCode>FullBatch</BatchGroupingCode><BatchIndexCode>Current</BatchIndexCode></Batch><Card><EncryptedFormat>Default</EncryptedFormat></Card><Transaction><TransactionID>2017576151</TransactionID><ReferenceNumber>1</ReferenceNumber><ReversalType>System</ReversalType><MarketCode>Default</MarketCode><BillPaymentFlag>False</BillPaymentFlag><DuplicateCheckDisableFlag>False</DuplicateCheckDisableFlag><DuplicateOverrideFlag>False</DuplicateOverrideFlag><RecurringFlag>False</RecurringFlag><ProcessorName>NULL_PROCESSOR_TEST</ProcessorName><TransactionStatus>Success</TransactionStatus><TransactionStatusCode>8</TransactionStatusCode><PartialApprovedFlag>False</PartialApprovedFlag><EMVEncryptionFormat>Default</EMVEncryptionFormat><ReversalReason>Unknown</ReversalReason></Transaction><PaymentAccount><PaymentAccountType>CreditCard</PaymentAccountType><PASSUpdaterBatchStatus>Null</PASSUpdaterBatchStatus><PASSUpdaterOption>Null</PASSUpdaterOption></PaymentAccount><Address><BillingAddress1>456 My Street</BillingAddress1><BillingZipcode>K1C2N6</BillingZipcode></Address><ScheduledTask><RunFrequency>OneTimeFuture</RunFrequency><RunUntilCancelFlag>False</RunUntilCancelFlag><ScheduledTaskStatus>Active</ScheduledTaskStatus></ScheduledTask><DemandDepositAccount><DDAAccountType>Checking</DDAAccountType><CheckType>Personal</CheckType></DemandDepositAccount><TransactionSetup><TransactionSetupMethod>Null</TransactionSetupMethod><Device>Null</Device><Embedded>False</Embedded><CVVRequired>False</CVVRequired><AutoReturn>False</AutoReturn><DeviceInputCode>NotUsed</DeviceInputCode></TransactionSetup><Terminal><TerminalType>Unknown</TerminalType><CardPresentCode>UseDefault</CardPresentCode><CardholderPresentCode>UseDefault</CardholderPresentCode><CardInputCode>UseDefault</CardInputCode><CVVPresenceCode>UseDefault</CVVPresenceCode><TerminalCapabilityCode>UseDefault</TerminalCapabilityCode><TerminalEnvironmentCode>UseDefault</TerminalEnvironmentCode><MotoECICode>UseDefault</MotoECICode><CVVResponseType>Regular</CVVResponseType><ConsentCode>NotUsed</ConsentCode><TerminalEncryptionFormat>Default</TerminalEncryptionFormat></Terminal><AutoRental><AutoRentalVehicleClassCode>Unused</AutoRentalVehicleClassCode><AutoRentalDistanceUnit>Unused</AutoRentalDistanceUnit><AutoRentalAuditAdjustmentCode>NoAdjustments</AutoRentalAuditAdjustmentCode></AutoRental><Healthcare><HealthcareFlag>False</HealthcareFlag><HealthcareFirstAccountType>NotSpecified</HealthcareFirstAccountType><HealthcareFirstAmountType>LedgerBalance</HealthcareFirstAmountType><HealthcareFirstAmountSign>Positive</HealthcareFirstAmountSign><HealthcareSecondAccountType>NotSpecified</HealthcareSecondAccountType><HealthcareSecondAmountType>LedgerBalance</HealthcareSecondAmountType><HealthcareSecondAmountSign>Positive</HealthcareSecondAmountSign><HealthcareThirdAccountType>NotSpecified</HealthcareThirdAccountType><HealthcareThirdAmountType>LedgerBalance</HealthcareThirdAmountType><HealthcareThirdAmountSign>Positive</HealthcareThirdAmountSign><HealthcareFourthAccountType>NotSpecified</HealthcareFourthAccountType><HealthcareFourthAmountType>LedgerBalance</HealthcareFourthAmountType><HealthcareFourthAmountSign>Positive</HealthcareFourthAmountSign></Healthcare><Lodging><LodgingPrestigiousPropertyCode>NonParticipant</LodgingPrestigiousPropertyCode><LodgingSpecialProgramCode>Default</LodgingSpecialProgramCode><LodgingChargeType>Default</LodgingChargeType></Lodging><BIN /><EnhancedBIN /><Token><TokenProvider>Null</TokenProvider></Token></response></CheckVerificationResponse></soap:Body></soap:Envelope>
+    XML
+  end
+
+  # eg using xmlns services.elementexpress.com for TransactionQuery instead of reporting
+  def invalid_request_response
+    <<-XML
+<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"><soap:Body><TransactionQueryResponse xmlns="https://reporting.elementexpress.com"><response><ExpressResponseCode>103</ExpressResponseCode><ExpressResponseMessage>Invalid Request</ExpressResponseMessage></response></TransactionQueryResponse></soap:Body></soap:Envelope>
+    XML
+  end
+
+  def successful_query_response
+    <<-XML
+<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"><soap:Body><TransactionQueryResponse xmlns="https://reporting.elementexpress.com"><response><ExpressResponseCode>0</ExpressResponseCode><ExpressResponseMessage>Success</ExpressResponseMessage><ExpressTransactionDate>20170829</ExpressTransactionDate><ExpressTransactionTime>190917</ExpressTransactionTime><ExpressTransactionTimezone>UTC-05:00:00</ExpressTransactionTimezone><ReportingData>&lt;Items&gt;&lt;Item&gt;&lt;TransactionID&gt;2017580117&lt;/TransactionID&gt;&lt;AcceptorID&gt;3928907&lt;/AcceptorID&gt;&lt;AccountID&gt;1013963&lt;/AccountID&gt;&lt;Name&gt;Spreedly&lt;/Name&gt;&lt;TerminalID&gt;01&lt;/TerminalID&gt;&lt;ApplicationID&gt;5211&lt;/ApplicationID&gt;&lt;ExpressResponseCode&gt;0&lt;/ExpressResponseCode&gt;&lt;ExpressResponseMessage&gt;Success&lt;/ExpressResponseMessage&gt;&lt;HostBatchID&gt;1&lt;/HostBatchID&gt;&lt;HostResponseCode&gt;0&lt;/HostResponseCode&gt;&lt;HostResponseMessage&gt;Transaction Processed&lt;/HostResponseMessage&gt;&lt;ReferenceNumber&gt;1&lt;/ReferenceNumber&gt;&lt;TrackingID&gt;E2768E09551E4C07BED4F322B733C21E&lt;/TrackingID&gt;&lt;TerminalType&gt;0         &lt;/TerminalType&gt;&lt;TransactionAmount&gt;1.00&lt;/TransactionAmount&gt;&lt;TransactionStatus&gt;Pending&lt;/TransactionStatus&gt;&lt;TransactionStatusCode&gt;10&lt;/TransactionStatusCode&gt;&lt;TransactionType&gt;CheckSale&lt;/TransactionType&gt;&lt;CardType&gt;NotUsed&lt;/CardType&gt;&lt;TrackDataPresent&gt;FALSE&lt;/TrackDataPresent&gt;&lt;BillingAddress1&gt;456 My Street&lt;/BillingAddress1&gt;&lt;BillingAddress2&gt;Apt 1&lt;/BillingAddress2&gt;&lt;BillingCity&gt;Ottawa&lt;/BillingCity&gt;&lt;BillingState&gt;ON&lt;/BillingState&gt;&lt;BillingZipCode&gt;K1C2N6&lt;/BillingZipCode&gt;&lt;ExpressTransactionDate&gt;20170829&lt;/ExpressTransactionDate&gt;&lt;ExpressTransactionTime&gt;190911&lt;/ExpressTransactionTime&gt;&lt;TimeStamp&gt;2017-08-29T18:09:12.537&lt;/TimeStamp&gt;&lt;IntegrationTypeID&gt;1&lt;/IntegrationTypeID&gt;&lt;/Item&gt;&lt;/Items&gt;</ReportingData><ReportingID>17120051</ReportingID></response></TransactionQueryResponse></soap:Body></soap:Envelope>
     XML
   end
 end

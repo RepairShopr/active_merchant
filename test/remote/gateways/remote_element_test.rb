@@ -1,17 +1,75 @@
 require 'test_helper'
 
 class RemoteElementTest < Test::Unit::TestCase
+  module NullProcessor
+    # The below table works with the following transaction types:
+    # CreditCardSale, CreditCardAuthorization, CreditCardCredit, CreditCardReturn, DebitCardSale and DebitCardReturn
+    CARD_CODED_VALUES = {
+      # code: Dollar Amount # [Express Response Code/Message], # Host Response Code/Message
+              approved:   100, # [0, 'APPROVED'],           # 000 / AP
+      partial_approved:  2305, # [5, 'PARTIAL APPROVED'],   # 010 / PARTIAL AP
+              declined:    20, # [20, 'DECLINED'],          # 007 / DECLINED
+          expired_card:    21, # [21, 'EXPIRED CARD'],      # 054 / EXPIRED CARD
+          duplicate_ap:    22, # [22, 'DUPLICATE AP'],      # 094 / AP DUP
+             duplicate:    23, # [23, 'DUPLICATE'],         # 094 / DUPLICATE
+          pick_up_card:    24, # [24, 'PICK UP CARD'],      # 004 / PICK UP CARD
+           call_issuer:    25, # [25, 'CALL ISSUER'],       # 002 / CALL ND
+             undefined:    90, # [90, 'UNDEFINED'],
+          invalid_data:   101, # [101, 'INVALID DATA'],
+       invalid_account:   102, # [102, 'INVALID ACCOUNT'],
+       invalid_request:   103, # [103, 'INVALID REQUEST'],
+           auth_failed:   104, # [104, 'AUTH FAILED'],
+           not_allowed:   105, # [105, 'NOT ALLOWED'],      # 058 / UNAUTH TRANS
+        out_of_balance:   120, # [120, 'OUT OF BALANCE'],   # 0NB / INV BAL/SETTL
+            comm_error:  1001, # [1001, 'COMM ERROR'],
+            host_error:  1002, # [1002, 'HOST ERROR'],
+                 error:  1009, # [1009, 'ERROR'],
+      balance_approved:  2306, # [0, 'APPROVED'],           # 000 / AP (Balance and Currency returned)
+      any_other_amount:  9999, # [0 / APPROVED],            # 000 / AP
+    }
+
+    def self.card_code_amount(symbol)
+      CARD_CODED_VALUES[symbol]
+    end
+  end
+
   def setup
     @gateway = ElementGateway.new(fixtures(:element))
 
-    @amount = 100
+    @amount = NullProcessor.card_code_amount(:approved)
+    # Element lists certain amounts that can be used
+    # for triggering certain results.
+    @declined_amount = NullProcessor.card_code_amount(:declined)
     @credit_card = credit_card('4000100011112224')
     @check = check
     @options = {
       order_id: '1',
       billing_address: address,
-      description: 'Store Purchase'
+      description: 'Store Purchase',
+      # card_present_code: 'ManualKeyed', # 0/1/2/3 Default/Unknown/Present/NotPresent
+      card_input_code: 'ManualKeyed', # 0/1/2/3/4/5 Default/Unknown/MagstripeRead/ContactlessMagstripeRead/ManualKeyed/ManualKeyedMagstripeFailure
     }
+  end
+
+  def test_verify_credentials
+    assert @gateway.verify_credentials
+
+    valid_creds = fixtures(:element)
+
+    # 'nonsense/is@here' => 'Invalid Account Token', '' => 'Invalid Request'
+    gateway = ElementGateway.new(valid_creds.merge(account_id: 'nonsense/is@here'))
+    assert !gateway.verify_credentials
+    # if returns response: assert_equal 'Invalid AccountToken', response.message
+
+    # 'nonsense/is@here' => 'Invalid Account Token', '' => 'Invalid Request'
+    gateway = ElementGateway.new(valid_creds.merge(account_token: ''))
+    assert !gateway.verify_credentials
+    # if returns response: assert_equal 'Invalid AccountToken', response.message
+
+    # 'nonsense/is@here' => 'Invalid Account', '' => 'AcceptorID required'
+    gateway = ElementGateway.new(valid_creds.merge(acceptor_id: ''))
+    assert !gateway.verify_credentials
+    # if returns response: assert_equal 'Invalid Account', response.message
   end
 
   def test_successful_purchase
@@ -23,7 +81,7 @@ class RemoteElementTest < Test::Unit::TestCase
   end
 
   def test_failed_purchase
-    @amount = 20
+    @amount = NullProcessor.card_code_amount(:declined)
     response = @gateway.purchase(@amount, @credit_card, @options)
     assert_failure response
     assert_equal 'Declined', response.message
@@ -35,7 +93,52 @@ class RemoteElementTest < Test::Unit::TestCase
     assert_equal 'Success', response.message
   end
 
-  def test_successful_purchase_with_payment_account_token
+  def test_successful_purchase_with_check_account_token
+    # A 'successful' `store` is meaningless if it can't then be used to `purchase`
+    # purchase-by-token depends on tracking PaymentAccountType in authorization (regression on adding ACH)
+
+    # 'ach' is not a valid check.account_type, but could be expected to and sort-of works as Enum for value nil
+    # account_type nil, meaning unset/unknown/not-needed. Element considers this 'ACH'
+
+    ['checking', 'savings', 'ach', nil].each do |account_type|
+      response = @gateway.store(check(account_type: account_type), @options)
+      assert_success response
+
+      # api specification says PaymentAccountType is not in the Response, however it is returned as 'CreditCard' always
+      # assert_equal 'Checking', response.params['paymentaccount']['paymentaccounttype']
+
+      response = @gateway.purchase(@amount, response.authorization, @options)
+      assert_success response
+      assert_equal 'Success', response.message, "failure for #{account_type}"
+    end
+  end
+
+  def test_various_check_transaction_status_with_null_processor
+    null_processor_amount_to_transaction_status = {
+      3333 => 'Returned',
+      3334 => 'Pending',
+      3335 => 'Queued',
+      3336 => 'Unknown',
+      3337 => 'Error',
+      3338 => 'Originated',
+      3339 => 'Settled',
+    }
+
+    stored_auth = @gateway.store(check(account_type: 'ach'), @options).authorization
+
+    null_processor_amount_to_transaction_status.each do |amount, status|
+      response = @gateway.purchase(amount, @check, @options)
+      assert_success response
+      assert_equal status, response.params['transaction']['transactionstatus']
+
+      response = @gateway.purchase(amount, stored_auth, @options)
+      assert_success response
+      assert_equal status, response.params['transaction']['transactionstatus']
+    end
+
+  end
+
+  def test_successful_purchase_with_credit_card_payment_account_token
     response = @gateway.store(@credit_card, @options)
     assert_success response
 
@@ -60,7 +163,7 @@ class RemoteElementTest < Test::Unit::TestCase
   end
 
   def test_failed_authorize
-    @amount = 20
+    @amount = NullProcessor.card_code_amount(:declined)
     response = @gateway.authorize(@amount, @credit_card, @options)
     assert_failure response
     assert_equal 'Declined', response.message
@@ -103,6 +206,18 @@ class RemoteElementTest < Test::Unit::TestCase
     assert_equal 'TransactionID required', response.message
   end
 
+  def test_successful_credit
+    assert credit = @gateway.credit(@amount, @credit_card)
+    assert_success credit
+    assert_equal 'Approved', credit.message
+  end
+
+  def test_failed_credit
+    response = @gateway.credit(@declined_amount, @credit_card)
+    assert_failure response
+    assert_equal 'Declined', response.message
+  end
+
   def test_successful_void
     auth = @gateway.authorize(@amount, @credit_card, @options)
     assert_success auth
@@ -121,13 +236,27 @@ class RemoteElementTest < Test::Unit::TestCase
   def test_successful_verify
     response = @gateway.verify(@credit_card, @options)
     assert_success response
-    assert_match %r{Approved}, response.message
+    assert_match %r{Success}, response.message
+
+    response = @gateway.verify(@check, @options)
+    assert_success response
+    assert_match %r{Success}, response.message
   end
 
   def test_successful_store
     response = @gateway.store(@credit_card, @options)
     assert_success response
     assert_match %r{PaymentAccount created}, response.message
+  end
+
+  def test_successful_unstore
+    response = @gateway.store(@credit_card, @options)
+    assert_success response
+    assert_match %r{PaymentAccount created}, response.message
+
+    response = @gateway.unstore(response.authorization)
+    assert_success response
+    assert_match %r{PaymentAccount deleted}, response.message
   end
 
   def test_invalid_login
@@ -145,7 +274,7 @@ class RemoteElementTest < Test::Unit::TestCase
     transcript = @gateway.scrub(transcript)
 
     assert_scrubbed(@credit_card.number, transcript)
-    assert_scrubbed(@credit_card.verification_value, transcript)
+    assert_scrubbed(%r{\b#{@credit_card.verification_value}\b}, transcript)
     assert_scrubbed(@gateway.options[:account_token], transcript)
   end
 
@@ -158,5 +287,91 @@ class RemoteElementTest < Test::Unit::TestCase
     assert_scrubbed(@check.account_number, transcript)
     assert_scrubbed(@check.routing_number, transcript)
     assert_scrubbed(@gateway.options[:account_token], transcript)
+  end
+
+  def test_echeck_status
+    response = @gateway.purchase(@amount, @check, @options)
+    assert_success response
+    assert_equal 'Success', response.message
+
+    status_response = @gateway.query(response.authorization)
+    assert_success status_response
+    assert_equal 'Pending',status_response.query_items.first['transactionstatus']
+    assert_equal '10',status_response.query_items.first['transactionstatuscode']
+    assert_equal response.authorization.split("|").first, status_response.authorization.split("|").first
+    # some other check on a status that has changed
+  end
+
+  def test_query_date_range
+    omit 'Currently (2017-09-14), the cert db has a 30 min delay on non-indexed values (id is indexed, time is not)'
+
+    # it is common to check all transactions from the last 7 or 10 days to update Check TransactionStatus,
+    # but for this test keep window narrow
+
+    time_begin = Time.now.utc - 10.seconds
+
+    response = @gateway.purchase(@amount, @check, @options)
+    assert_success response
+    first_id = response.authorization.split("|").first
+
+    response = @gateway.purchase(@amount, @check, @options)
+    assert_success response
+    second_id = response.authorization.split("|").first
+
+    time_end = Time.now.utc + 10.seconds
+
+    response = @gateway.query(nil, trans_date_time_begin: time_begin, trans_date_time_end: time_end)
+    assert_success response
+
+    found_transaction_ids = response.query_items.map {|qi| qi['transactionid']}
+    assert_include(found_transaction_ids, first_id)
+    assert_include(found_transaction_ids, second_id)
+  end
+
+  # This can evaluate the latency in TransactionQuery against non-indexed columns, eg time
+  # def test_query_latency
+  #   response = @gateway.purchase(@amount, @check, @options)
+  #   assert_success response
+  #   assert_equal 'Success', response.message
+  #   new_id = response.authorization.split("|").first
+  #
+  #   # <ExpressTransactionDate>20170914</ExpressTransactionDate>
+  #   # <ExpressTransactionTime>140001</ExpressTransactionTime>
+  #   # <TimeStamp>2017-09-14T13:59:57.717</TimeStamp>
+  #   response = @gateway.query(new_id)
+  #   assert_success response
+  #   timestamp = Time.parse(response.query_items.first['timestamp'] + "-0500")
+  #   tolerant_start = timestamp - 2.minutes
+  #   tolerant_end = timestamp + 2.minutes
+  #
+  #   puts tolerant_start
+  #   puts tolerant_end
+  #
+  #   i = 0
+  #   while true do
+  #     puts "#{Time.now} #{i += 1}"
+  #     response = @gateway.query(nil, trans_date_time_begin: tolerant_start, trans_date_time_end: tolerant_end)
+  #     assert_failure response
+  #     sleep(5)
+  #   end
+  #   status_response = @gateway.query(response.authorization)
+  #   assert_success status_response
+  #   assert_equal new_id, status_response.authorization.split("|").first
+  # end
+
+  def test_query_invalid
+    # regression test for invalid TransactionId
+    response = @gateway.query("foo||")
+    assert_failure response
+  end
+
+  def test_query_no_results
+    # response = @gateway.query('2005831886||') # this id was generated 2015/12/01
+
+    response = @gateway.query('1||') # '1' is valid format TransactionId, but probably does not exist
+    # assert_success response # unclear whether 'No Records' *should* be a 'success' or 'failure'. current expectation is failure
+    assert_failure response
+
+    assert_equal [], response.query_items
   end
 end
