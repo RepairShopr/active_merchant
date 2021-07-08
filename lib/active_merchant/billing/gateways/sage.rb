@@ -7,16 +7,16 @@ module ActiveMerchant #:nodoc:
       self.homepage_url = 'Sage Payment Solutions'
       self.live_url = 'https://www.sagepayments.net/cgi-bin'
 
-      self.supported_countries = ['US', 'CA']
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :diners_club]
+      self.supported_countries = %w[US CA]
+      self.supported_cardtypes = %i[visa master american_express discover jcb diners_club]
 
       TRANSACTIONS = {
-        :purchase           => '01',
-        :authorization      => '02',
-        :capture            => '11',
-        :void               => '04',
-        :credit             => '06',
-        :refund             => '10'
+        purchase:       '01',
+        authorization:  '02',
+        capture:        '11',
+        void:           '04',
+        credit:         '06',
+        refund:         '10'
       }
 
       SOURCE_CARD   = 'bankcard'
@@ -77,7 +77,7 @@ module ActiveMerchant #:nodoc:
         commit(:credit, post, source)
       end
 
-      def refund(money, reference, options={})
+      def refund(money, reference, options = {})
         post = {}
         add_reference(post, reference)
         add_transaction_data(post, money, options)
@@ -215,7 +215,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_reference(post, reference)
-        ref, _ = reference.to_s.split(';')
+        ref, = reference.to_s.split(';')
         post[:T_reference] = ref
       end
 
@@ -261,11 +261,10 @@ module ActiveMerchant #:nodoc:
         response = parse(ssl_post(url, post_data(action, params)), source)
 
         Response.new(success?(response), response[:message], response,
-          :test => test?,
-          :authorization => authorization_from(response, source),
-          :avs_result => { :code => response[:avs_result] },
-          :cvv_result => response[:cvv_result]
-        )
+          test: test?,
+          authorization: authorization_from(response, source),
+          avs_result: { code: response[:avs_result] },
+          cvv_result: response[:cvv_result])
       end
 
       def url(params, source)
@@ -382,8 +381,7 @@ module ActiveMerchant #:nodoc:
           end
 
           Response.new(success, message, response,
-            authorization: response[:guid]
-          )
+            authorization: response[:guid])
         end
 
         ENVELOPE_NAMESPACES = {

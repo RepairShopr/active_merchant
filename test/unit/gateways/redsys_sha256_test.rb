@@ -6,12 +6,13 @@ class RedsysSHA256Test < Test::Unit::TestCase
   def setup
     Base.mode = :test
     @credentials = {
-      :login      => '091952713',
-      :secret_key => 'QIK77hYl6UFcoCYFKcj+ZjJg8Q6I93Dx',
-      :signature_algorithm => 'sha256'
+      login: '091952713',
+      secret_key: 'QIK77hYl6UFcoCYFKcj+ZjJg8Q6I93Dx',
+      signature_algorithm: 'sha256'
     }
     @gateway = RedsysGateway.new(@credentials)
     @credit_card = credit_card('4548812049400004')
+    @threeds2_credit_card = credit_card('4918019199883839')
     @headers = {
       'Content-Type' => 'application/x-www-form-urlencoded'
     }
@@ -22,17 +23,17 @@ class RedsysSHA256Test < Test::Unit::TestCase
     @credit_card.month = 9
     @credit_card.year = 2017
     @gateway.expects(:ssl_post).with(RedsysGateway.test_url, purchase_request, @headers).returns(successful_purchase_response)
-    @gateway.purchase(100, @credit_card, :order_id => '144742736014')
+    @gateway.purchase(100, @credit_card, order_id: '144742736014')
   end
 
   def test_purchase_payload_with_credit_card_token
     @gateway.expects(:ssl_post).with(RedsysGateway.test_url, purchase_request_with_credit_card_token, @headers).returns(successful_purchase_response)
-    @gateway.purchase(100, '3126bb8b80a79e66eb1ecc39e305288b60075f86', :order_id => '144742884282')
+    @gateway.purchase(100, '3126bb8b80a79e66eb1ecc39e305288b60075f86', order_id: '144742884282')
   end
 
   def test_successful_purchase
     @gateway.expects(:ssl_post).returns(successful_purchase_response)
-    res = @gateway.purchase(100, credit_card, :order_id => '144742736014')
+    res = @gateway.purchase(100, credit_card, order_id: '144742736014')
     assert_success res
     assert_equal 'Transaction Approved', res.message
     assert_equal '144742736014|100|978', res.authorization
@@ -42,7 +43,7 @@ class RedsysSHA256Test < Test::Unit::TestCase
   # This one is being werid...
   def test_successful_purchase_requesting_credit_card_token
     @gateway.expects(:ssl_post).returns(successful_purchase_response_with_credit_card_token)
-    res = @gateway.purchase(100, 'e55e1d0ef338e281baf1d0b5b68be433260ddea0', :order_id => '144742955848')
+    res = @gateway.purchase(100, 'e55e1d0ef338e281baf1d0b5b68be433260ddea0', order_id: '144742955848')
     assert_success res
     assert_equal 'Transaction Approved', res.message
     assert_equal '144742955848|100|978', res.authorization
@@ -52,7 +53,7 @@ class RedsysSHA256Test < Test::Unit::TestCase
 
   def test_failed_purchase
     @gateway.expects(:ssl_post).returns(failed_purchase_response)
-    res = @gateway.purchase(100, credit_card, :order_id => '144743314659')
+    res = @gateway.purchase(100, credit_card, order_id: '144743314659')
     assert_failure res
     assert_equal 'SIS0093 ERROR', res.message
   end
@@ -65,7 +66,7 @@ class RedsysSHA256Test < Test::Unit::TestCase
 
   def test_error_purchase
     @gateway.expects(:ssl_post).returns(error_purchase_response)
-    res = @gateway.purchase(100, credit_card, :order_id => '123')
+    res = @gateway.purchase(100, credit_card, order_id: '123')
     assert_failure res
     assert_equal 'SIS0051 ERROR', res.message
   end
@@ -104,7 +105,7 @@ class RedsysSHA256Test < Test::Unit::TestCase
       ),
       anything
     ).returns(successful_authorize_response)
-    response = @gateway.authorize(100, credit_card, :order_id => '144743367273')
+    response = @gateway.authorize(100, credit_card, order_id: '144743367273')
     assert_success response
   end
 
@@ -123,21 +124,144 @@ class RedsysSHA256Test < Test::Unit::TestCase
     assert_equal response.authorization, '156270437866||'
   end
 
+  def test_successful_purchase_with_3ds
+    @gateway.expects(:ssl_post).returns(successful_authorize_with_3ds_response)
+    response = @gateway.purchase(100, credit_card, { execute_threed: true, order_id: '156270437866' })
+    assert response.test?
+    assert response.params['ds_emv3ds']
+    assert_equal response.message, 'CardConfiguration'
+    assert_equal response.authorization, '156270437866||'
+  end
+
+  def test_successful_purchase_with_3ds2
+    @gateway.expects(:ssl_post).returns(successful_authorize_with_3ds_response)
+    response = @gateway.purchase(100, @threeds2_credit_card, { execute_threed: true, order_id: '156270437866' })
+    assert response.test?
+    assert response.params['ds_emv3ds']
+    assert_equal response.message, 'CardConfiguration'
+    assert_equal response.authorization, '156270437866||'
+  end
+
+  def test_successful_purchase_with_3ds2_and_mit_exemption
+    @gateway.expects(:ssl_post).returns(successful_purchase_with_3ds2_and_mit_exemption_response)
+    response = @gateway.purchase(100, @threeds2_credit_card, { execute_threed: true, order_id: '161608782525', sca_exemption: 'MIT', sca_exemption_direct_payment_enabled: true })
+    assert response.test?
+    assert response.params['ds_emv3ds']
+
+    assert_equal response.message, 'CardConfiguration'
+    assert_equal response.authorization, '161608782525||'
+
+    assert response.params['ds_card_psd2']
+    assert_equal '2.1.0', JSON.parse(response.params['ds_emv3ds'])['protocolVersion']
+    assert_equal 'Y', response.params['ds_card_psd2']
+    assert_equal 'CardConfiguration', response.message
+  end
+
   def test_3ds_data_passed
     stub_comms(@gateway, :ssl_request) do
       @gateway.authorize(100, credit_card, { execute_threed: true, order_id: '156270437866', terminal: 12, sca_exemption: 'LWV' })
-    end.check_request do |method, endpoint, data, headers|
+    end.check_request do |_method, _endpoint, data, _headers|
       assert_match(/iniciaPeticion/, data)
       assert_match(/<DS_MERCHANT_TERMINAL>12<\/DS_MERCHANT_TERMINAL>/, data)
       assert_match(/\"threeDSInfo\":\"CardData\"/, data)
-      assert_match(/<DS_MERCHANT_EXCEP_SCA>LWV<\/DS_MERCHANT_EXCEP_SCA>/, data)
+
+      # as per docs on Inicia Peticion Y must be passed
+      assert_match(/<DS_MERCHANT_EXCEP_SCA>Y<\/DS_MERCHANT_EXCEP_SCA>/, data)
+    end.respond_with(successful_authorize_with_3ds_response)
+  end
+
+  def test_3ds_data_with_special_characters_properly_escaped
+    @credit_card.first_name = 'Julián'
+    stub_comms(@gateway, :ssl_request) do
+      @gateway.authorize(100, @credit_card, { execute_threed: true, order_id: '156270437866', terminal: 12, sca_exemption: 'LWV', description: 'esta es la descripción' })
+    end.check_request do |_method, _endpoint, data, _headers|
+      assert_match(/iniciaPeticion/, data)
+      assert_match(/<DS_MERCHANT_TERMINAL>12<\/DS_MERCHANT_TERMINAL>/, data)
+      assert_match(/\"threeDSInfo\":\"CardData\"/, data)
+
+      # as per docs on Inicia Peticion Y must be passed
+      assert_match(/<DS_MERCHANT_EXCEP_SCA>Y<\/DS_MERCHANT_EXCEP_SCA>/, data)
+      assert_match(/Juli%C3%A1n/, data)
+      assert_match(/descripci%C3%B3n/, data)
+    end.respond_with(successful_authorize_with_3ds_response)
+  end
+
+  def test_3ds1_data_passed_as_mpi
+    stub_comms(@gateway, :ssl_request) do
+      @gateway.authorize(100, credit_card, { order_id: '156270437866', description: 'esta es la descripción', three_d_secure: { version: '1.0.2', xid: 'xid', ds_transaction_id: 'ds_transaction_id', cavv: 'cavv', eci: '02' } })
+    end.check_request do |_method, _endpoint, encdata, _headers|
+      data = CGI.unescape(encdata)
+      assert_match(/<DS_MERCHANT_MPIEXTERNAL>/, data)
+      assert_match(%r("TXID":"xid"), data)
+      assert_match(%r("CAVV":"cavv"), data)
+      assert_match(%r("ECI":"02"), data)
+
+      assert_not_match(%r("authenticacionMethod"), data)
+      assert_not_match(%r("authenticacionType"), data)
+      assert_not_match(%r("authenticacionFlow"), data)
+
+      assert_not_match(%r("protocolVersion":"2.1.0"), data)
+      assert_match(/descripción/, data)
+    end.respond_with(successful_authorize_with_3ds_response)
+  end
+
+  def test_3ds2_data_passed_as_mpi
+    stub_comms(@gateway, :ssl_request) do
+      @gateway.authorize(100, credit_card, { order_id: '156270437866', description: 'esta es la descripción', three_d_secure: { version: '2.1.0', three_ds_server_trans_id: 'three_ds_server_trans_id', ds_transaction_id: 'ds_transaction_id', cavv: 'cavv', eci: '02' } })
+    end.check_request do |_method, _endpoint, encdata, _headers|
+      data = CGI.unescape(encdata)
+      assert_match(/<DS_MERCHANT_MPIEXTERNAL>/, data)
+      assert_match(%r("threeDSServerTransID":"three_ds_server_trans_id"), data)
+      assert_match(%r("dsTransID":"ds_transaction_id"), data)
+      assert_match(%r("authenticacionValue":"cavv"), data)
+      assert_match(%r("Eci":"02"), data)
+
+      assert_not_match(%r("authenticacionMethod"), data)
+      assert_not_match(%r("authenticacionType"), data)
+      assert_not_match(%r("authenticacionFlow"), data)
+
+      assert_match(%r("protocolVersion":"2.1.0"), data)
+      assert_match(/descripción/, data)
+    end.respond_with(successful_authorize_with_3ds_response)
+  end
+
+  def test_3ds2_data_passed_as_mpi_with_optional_values
+    stub_comms(@gateway, :ssl_request) do
+      @gateway.authorize(100, credit_card, { order_id: '156270437866', description: 'esta es la descripción', three_d_secure: { version: '2.1.0', three_ds_server_trans_id: 'three_ds_server_trans_id', ds_transaction_id: 'ds_transaction_id', cavv: 'cavv', eci: '02' },
+        authentication_method: '01',
+        authentication_type: 'anything',
+        authentication_flow: 'F' })
+    end.check_request do |_method, _endpoint, encdata, _headers|
+      data = CGI.unescape(encdata)
+      assert_match(/<DS_MERCHANT_MPIEXTERNAL>/, data)
+      assert_match(%r("threeDSServerTransID":"three_ds_server_trans_id"), data)
+      assert_match(%r("dsTransID":"ds_transaction_id"), data)
+      assert_match(%r("authenticacionValue":"cavv"), data)
+      assert_match(%r("Eci":"02"), data)
+
+      assert_match(%r("authenticacionMethod":"01"), data)
+      assert_match(%r("authenticacionType":"anything"), data)
+      assert_match(%r("authenticacionFlow":"F"), data)
+
+      assert_match(%r("protocolVersion":"2.1.0"), data)
+      assert_match(/descripción/, data)
+    end.respond_with(successful_authorize_with_3ds_response)
+  end
+
+  def test_3ds2_data_as_mpi_with_special_characters_properly_escaped
+    @credit_card.first_name = 'Julián'
+    stub_comms(@gateway, :ssl_request) do
+      @gateway.authorize(100, @credit_card, { order_id: '156270437866', terminal: 12, description: 'esta es la descripción', three_d_secure: { version: '2.1.0', xid: 'xid', ds_transaction_id: 'ds_transaction_id', cavv: 'cavv' } })
+    end.check_request do |_method, _endpoint, encdata, _headers|
+      assert_match(/Juli%C3%A1n/, encdata)
+      assert_match(%r(descripci%C3%B3n), encdata)
     end.respond_with(successful_authorize_with_3ds_response)
   end
 
   def test_moto_flag_passed
     stub_comms(@gateway, :ssl_request) do
       @gateway.authorize(100, credit_card, { order_id: '156270437866', moto: true, metadata: { manual_entry: true } })
-    end.check_request do |method, endpoint, data, headers|
+    end.check_request do |_method, _endpoint, data, _headers|
       assert_match(/DS_MERCHANT_DIRECTPAYMENT%3Emoto%3C%2FDS_MERCHANT_DIRECTPAYMENT/, data)
     end.respond_with(successful_authorize_with_3ds_response)
   end
@@ -145,7 +269,7 @@ class RedsysSHA256Test < Test::Unit::TestCase
   def test_moto_flag_not_passed_if_not_explicitly_requested
     stub_comms(@gateway, :ssl_request) do
       @gateway.authorize(100, credit_card, { order_id: '156270437866', metadata: { manual_entry: true } })
-    end.check_request do |method, endpoint, data, headers|
+    end.check_request do |_method, _endpoint, data, _headers|
       refute_match(/DS_MERCHANT_DIRECTPAYMENT%3Emoto%3C%2FDS_MERCHANT_DIRECTPAYMENT/, data)
     end.respond_with(successful_authorize_with_3ds_response)
   end
@@ -153,7 +277,7 @@ class RedsysSHA256Test < Test::Unit::TestCase
   def test_bad_order_id_format
     stub_comms(@gateway, :ssl_request) do
       @gateway.authorize(100, credit_card, order_id: 'Una#cce-ptable44Format')
-    end.check_request do |method, endpoint, data, headers|
+    end.check_request do |_method, _endpoint, data, _headers|
       assert_match(/MERCHANT_ORDER%3E\d\d\d\dUnaccept%3C/, data)
     end.respond_with(successful_authorize_response)
   end
@@ -161,7 +285,7 @@ class RedsysSHA256Test < Test::Unit::TestCase
   def test_order_id_numeric_start_but_too_long
     stub_comms(@gateway, :ssl_request) do
       @gateway.authorize(100, credit_card, order_id: '1234ThisIs]FineButTooLong')
-    end.check_request do |method, endpoint, data, headers|
+    end.check_request do |_method, _endpoint, data, _headers|
       assert_match(/MERCHANT_ORDER%3E1234ThisIsFi%3C/, data)
     end.respond_with(successful_authorize_response)
   end
@@ -199,25 +323,25 @@ class RedsysSHA256Test < Test::Unit::TestCase
       includes(CGI.escape('<DS_MERCHANT_CURRENCY>840</DS_MERCHANT_CURRENCY>')),
       anything
     ).returns(successful_purchase_response)
-    @gateway.authorize(100, credit_card, :order_id => '1001', :currency => 'USD')
+    @gateway.authorize(100, credit_card, order_id: '1001', currency: 'USD')
   end
 
   def test_successful_verify
     @gateway.expects(:ssl_post).times(2).returns(successful_authorize_response).then.returns(successful_void_response)
-    response = @gateway.verify(credit_card, :order_id => '144743367273')
+    response = @gateway.verify(credit_card, order_id: '144743367273')
     assert_success response
   end
 
   def test_successful_verify_with_failed_void
     @gateway.expects(:ssl_post).times(2).returns(successful_authorize_response).then.returns(failed_void_response)
-    response = @gateway.verify(credit_card, :order_id => '144743367273')
+    response = @gateway.verify(credit_card, order_id: '144743367273')
     assert_success response
     assert_equal 'Transaction Approved', response.message
   end
 
   def test_unsuccessful_verify
     @gateway.expects(:ssl_post).returns(failed_authorize_response)
-    response = @gateway.verify(credit_card, :order_id => '141278225678')
+    response = @gateway.verify(credit_card, order_id: '141278225678')
     assert_failure response
     assert_equal 'SIS0093 ERROR', response.message
   end
@@ -237,7 +361,7 @@ class RedsysSHA256Test < Test::Unit::TestCase
   end
 
   def test_supported_cardtypes
-    assert_equal [:visa, :master, :american_express, :jcb, :diners_club, :unionpay], RedsysGateway.supported_cardtypes
+    assert_equal %i[visa master american_express jcb diners_club unionpay], RedsysGateway.supported_cardtypes
   end
 
   def test_using_test_mode
@@ -248,10 +372,10 @@ class RedsysSHA256Test < Test::Unit::TestCase
   def test_overriding_options
     Base.mode = :production
     gw = RedsysGateway.new(
-      :terminal => 1,
-      :login => '1234',
-      :secret_key => '12345',
-      :test => true
+      terminal: 1,
+      login: '1234',
+      secret_key: '12345',
+      test: true
     )
     assert gw.test?
     assert_equal RedsysGateway.test_url, gw.send(:url)
@@ -260,9 +384,9 @@ class RedsysSHA256Test < Test::Unit::TestCase
   def test_production_mode
     Base.mode = :production
     gw = RedsysGateway.new(
-      :terminal => 1,
-      :login => '1234',
-      :secret_key => '12345'
+      terminal: 1,
+      login: '1234',
+      secret_key: '12345'
     )
     assert !gw.test?
     assert_equal RedsysGateway.live_url, gw.send(:url)
@@ -331,6 +455,10 @@ class RedsysSHA256Test < Test::Unit::TestCase
 
   def successful_authorize_with_3ds_response
     '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><soapenv:Header/><soapenv:Body><p231:iniciaPeticionResponse xmlns:p231="http://webservice.sis.sermepa.es"><p231:iniciaPeticionReturn>&lt;RETORNOXML&gt;&lt;CODIGO&gt;0&lt;/CODIGO&gt;&lt;INFOTARJETA&gt;&lt;Ds_Order&gt;156270437866&lt;/Ds_Order&gt;&lt;Ds_MerchantCode&gt;091952713&lt;/Ds_MerchantCode&gt;&lt;Ds_Terminal&gt;1&lt;/Ds_Terminal&gt;&lt;Ds_TransactionType&gt;0&lt;/Ds_TransactionType&gt;&lt;Ds_EMV3DS&gt;{&quot;protocolVersion&quot;:&quot;NO_3DS_v2&quot;,&quot;threeDSInfo&quot;:&quot;CardConfiguration&quot;}&lt;/Ds_EMV3DS&gt;&lt;Ds_Signature&gt;LIWUaQh+lwsE0DBNpv2EOYALCY6ZxHDQ6gLvOcWiSB4=&lt;/Ds_Signature&gt;&lt;/INFOTARJETA&gt;&lt;/RETORNOXML&gt;</p231:iniciaPeticionReturn></p231:iniciaPeticionResponse></soapenv:Body></soapenv:Envelope>'
+  end
+
+  def successful_purchase_with_3ds2_and_mit_exemption_response
+    '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><soapenv:Header/><soapenv:Body><p231:iniciaPeticionResponse xmlns:p231="http://webservice.sis.sermepa.es"><p231:iniciaPeticionReturn>&lt;RETORNOXML&gt;&lt;CODIGO&gt;0&lt;/CODIGO&gt;&lt;INFOTARJETA&gt;&lt;Ds_Order&gt;161608782525&lt;/Ds_Order&gt;&lt;Ds_MerchantCode&gt;091952713&lt;/Ds_MerchantCode&gt;&lt;Ds_Terminal&gt;12&lt;/Ds_Terminal&gt;&lt;Ds_TransactionType&gt;0&lt;/Ds_TransactionType&gt;&lt;Ds_EMV3DS&gt;{&quot;protocolVersion&quot;:&quot;2.1.0&quot;,&quot;threeDSServerTransID&quot;:&quot;65120b61-28a3-476a-9aac-7b78c63a907a&quot;,&quot;threeDSInfo&quot;:&quot;CardConfiguration&quot;,&quot;threeDSMethodURL&quot;:&quot;https://sis-d.redsys.es/sis-simulador-web/threeDsMethod.jsp&quot;}&lt;/Ds_EMV3DS&gt;&lt;Ds_Card_PSD2&gt;Y&lt;/Ds_Card_PSD2&gt;&lt;Ds_Signature&gt;q4ija0q0x48NBb3O6EFLwEavCUMbtUWR/U38Iv0qSn0=&lt;/Ds_Signature&gt;&lt;/INFOTARJETA&gt;&lt;/RETORNOXML&gt;</p231:iniciaPeticionReturn></p231:iniciaPeticionResponse></soapenv:Body></soapenv:Envelope>'
   end
 
   def failed_authorize_response

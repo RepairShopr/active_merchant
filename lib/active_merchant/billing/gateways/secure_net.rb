@@ -4,11 +4,11 @@ module ActiveMerchant #:nodoc:
       API_VERSION = '4.0'
 
       TRANSACTIONS = {
-        :auth_only                      => '0000',
-        :auth_capture                   => '0100',
-        :prior_auth_capture             => '0200',
-        :void                           => '0400',
-        :credit                         => '0500'
+        auth_only:            '0000',
+        auth_capture:         '0100',
+        prior_auth_capture:   '0200',
+        void:                 '0400',
+        credit:               '0500'
       }
 
       XML_ATTRIBUTES = {
@@ -18,7 +18,7 @@ module ActiveMerchant #:nodoc:
       NIL_ATTRIBUTE = { 'i:nil' => 'true' }
 
       self.supported_countries = ['US']
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
+      self.supported_cardtypes = %i[visa master american_express discover]
       self.homepage_url = 'http://www.securenet.com/'
       self.display_name = 'SecureNet'
 
@@ -80,11 +80,10 @@ module ActiveMerchant #:nodoc:
         response = parse(data)
 
         Response.new(success?(response), message_from(response), response,
-          :test => test?,
-          :authorization => build_authorization(response),
-          :avs_result => { :code => response[:avs_result_code] },
-          :cvv_result => response[:card_code_response_code]
-        )
+          test: test?,
+          authorization: build_authorization(response),
+          avs_result: { code: response[:avs_result_code] },
+          cvv_result: response[:card_code_response_code])
       end
 
       def build_request(request)
