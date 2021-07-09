@@ -210,6 +210,43 @@ module ActiveMerchant #:nodoc:
         commit('CreditCardAVSOnly', request, 0)
       end
 
+      # Extended API, in particular necessary to query the long-processing Check/ACH transactions
+      #  if standardizing, consider `status` or `retrieve`
+      # TODO: This endpoint exists to check TransactionStatusCode, so that enum ought to be modeled here
+      def query(transaction, options={})
+        if transaction.is_a? String
+          trans_id, _ = split_authorization(transaction)
+          options.merge!({trans_id: trans_id})
+        end
+
+        # `requires!` does not support either-or keys
+        if options.key? :trans_setup_id
+          # if transaction_setup_id is included, all other query fields are ignored
+          options = { transaction_setup_id: options[:transaction_setup_id] }
+        elsif options.key?(:trans_id)
+          # limited to just TransactionID
+        elsif options.key?(:trans_date_time_begin) && options.key?(:trans_date_time_end)
+          # transactions within range
+          # Element expects these times in 'local' instead of UTC, which is *probably* -05:00/ET
+          options[:express_timezone] ||= begin
+            response = health_check
+            needed_zone = response.params['expresstransactiontimezone']
+            /\AUTC(?<utc_offset>[+-]\d\d:\d\d).*\z/.match(needed_zone)[:utc_offset]
+          end
+        else
+          raise ArgumentError, 'requires TransactionID or TransactionSetupID or both TransactionDateTimeBegin AND TransactionDateTimeEnd'
+        end
+
+        request = build_soap_request do |xml|
+          xml.TransactionQuery(xmlns: "https://reporting.elementexpress.com") do
+            add_credentials(xml)
+            add_parameters(xml, options)
+          end
+        end
+
+        commit('TransactionQuery', request) #, transaction)
+      end
+
       def supports_scrubbing?
         true
       end
