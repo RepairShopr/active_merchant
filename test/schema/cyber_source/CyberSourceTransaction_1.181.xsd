@@ -1,5 +1,6 @@
+
 <?xml version="1.0" encoding="utf-8"?>
-<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemas-cybersource-com:transaction-data-1.159" targetNamespace="urn:schemas-cybersource-com:transaction-data-1.159" elementFormDefault="qualified" attributeFormDefault="unqualified">
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:tns="urn:schemas-cybersource-com:transaction-data-1.181" targetNamespace="urn:schemas-cybersource-com:transaction-data-1.181" elementFormDefault="qualified" attributeFormDefault="unqualified">
     <xsd:simpleType name="amount">
         <xsd:restriction base="xsd:string"/>
     </xsd:simpleType>
@@ -155,6 +156,10 @@
             <xsd:element name="referenceData_7_number" type="xsd:string" minOccurs="0"/>
             <xsd:element name="referenceData_7_code" type="xsd:string" minOccurs="0"/>
 
+
+            <xsd:element name="shippingDestinationTypes" type="xsd:string" minOccurs="0"/>
+
+
         </xsd:sequence>
         <xsd:attribute name="id" type="xsd:integer" use="optional"/>
     </xsd:complexType>
@@ -166,6 +171,7 @@
             <xsd:element name="networkTokenCryptogram" type="xsd:string" minOccurs="0"/>
             <xsd:element name="paSpecificationVersion" type="xsd:string" minOccurs="0"/>
             <xsd:element name="directoryServerTransactionID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="acsServerTransactionID" type="xsd:string" minOccurs="0"/>
             <xsd:element name="commerceIndicator" type="xsd:string" minOccurs="0"/>
             <xsd:element name="eciRaw" type="xsd:string" minOccurs="0"/>
             <xsd:element name="xid" type="xsd:string" minOccurs="0"/>
@@ -204,7 +210,21 @@
         	<xsd:element name="trustedMerchantExemptionIndicator" type="xsd:string" minOccurs="0"/>
         	<xsd:element name="secureCorporatePaymentIndicator" type="xsd:string" minOccurs="0"/>
 			<xsd:element name="deferredAuthIndicator" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="aggregatedAuthIndicator" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="debtRecoveryIndicator" type="xsd:string" minOccurs="0"/>
             <xsd:element name="delegatedAuthenticationExemptionIndicator" type="xsd:string" minOccurs="0" />
+            <xsd:element name="transitTransactionType" type="xsd:string" minOccurs="0" />
+			<xsd:element name="transportationMode" type="xsd:string" minOccurs="0" />
+			<xsd:element name="totaloffersCount" type="xsd:string" minOccurs="0" />
+            <xsd:element name="effectiveAuthenticationType" type="xsd:string" minOccurs="0" />
+            <xsd:element name="paChallengeCode" type="xsd:string" minOccurs="0" />
+            <xsd:element name="paresStatusReason" type="xsd:string" minOccurs="0" />
+            <xsd:element name="challengeCancelCode" type="xsd:string" minOccurs="0" />
+            <xsd:element name="paNetworkScore" type="xsd:string" minOccurs="0" />
+            <xsd:element name="paAuthenticationDate" type="xsd:string" minOccurs="0" />
+            <xsd:element name="authenticationOutageExemptionIndicator" type="xsd:string" minOccurs="0" />
+
+
         </xsd:sequence>
         <xsd:attribute name="run" type="tns:boolean" use="required"/>
     </xsd:complexType>
@@ -244,6 +264,8 @@
         	<xsd:element name="secureCorporatePaymentIndicator" type="xsd:string" minOccurs="0"/>
 			<xsd:element name="deferredAuthIndicator" type="xsd:string" minOccurs="0"/>
             <xsd:element name="delegatedAuthenticationExemptionIndicator" type="xsd:string" minOccurs="0" />
+			<xsd:element name="transitTransactionType" type="xsd:string" minOccurs="0" />
+			<xsd:element name="transportationMode" type="xsd:string" minOccurs="0" />
         </xsd:sequence>
         <xsd:attribute name="run" type="tns:boolean" use="required"/>
     </xsd:complexType>
@@ -428,6 +450,7 @@
             <xsd:element name="messageCategory" type="xsd:string" minOccurs="0"/>
             <xsd:element name="npaCode" type="xsd:string" minOccurs="0"/>
             <xsd:element name="recurringOriginalPurchaseDate" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="returnURL" type="xsd:string" minOccurs="0"/>
             <xsd:element name="transactionMode" type="xsd:string" minOccurs="0"/>
             <xsd:element name="recurringEndDate" type="xsd:string" minOccurs="0"/>
             <xsd:element name="recurringFrequency" type="xsd:string" minOccurs="0"/>
@@ -443,6 +466,24 @@
             <xsd:element name="merchantTTPCredential" type="xsd:string" minOccurs="0"/>
             <xsd:element name="requestorID" type="xsd:string" minOccurs="0"/>
             <xsd:element name="requestorName" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="acsWindowSize" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="decoupledAuthenticationIndicator" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="decoupledAuthenticationMaxTime" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="deviceChannel" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="priorAuthenticationReferenceID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="priorAuthenticationData" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="priorAuthenticationMethod" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="priorAuthenticationTime" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="requestorInitiatedAuthenticationIndicator" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="sdkMaxTimeout" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="authenticationIndicator" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="whiteListStatus" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="totalOffersCount" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="merchantScore" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="merchantFraudRate" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="acquirerCountry" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="secureCorporatePaymentIndicator" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="resendCount" type="xsd:string" minOccurs="0"/>
         </xsd:sequence>
         <xsd:attribute name="run" type="tns:boolean" use="required"/>
     </xsd:complexType>
@@ -451,8 +492,13 @@
             <xsd:element name="signedPARes" type="xsd:string" minOccurs="0"/>
 
             <xsd:element name="authenticationTransactionID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="responseAccessToken" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="otpToken" type="xsd:string" minOccurs="0"/>
 
         </xsd:sequence>
+        <xsd:attribute name="run" type="tns:boolean" use="required"/>
+    </xsd:complexType>
+    <xsd:complexType name="PayerAuthSetupService">
         <xsd:attribute name="run" type="tns:boolean" use="required"/>
     </xsd:complexType>
     <xsd:complexType name="TaxService">
@@ -1121,6 +1167,14 @@
             <xsd:element name="prefix" type="xsd:string" minOccurs="0"/>
             <xsd:element name="companyPhoneNumber" type="xsd:string" minOccurs="0"/>
 
+            <xsd:element name="httpBrowserColorDepth" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="httpBrowserJavaEnabled" type="tns:boolean" minOccurs="0"/>
+            <xsd:element name="httpBrowserJavaScriptEnabled" type="tns:boolean" minOccurs="0"/>
+            <xsd:element name="httpBrowserLanguage" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="httpBrowserScreenHeight" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="httpBrowserScreenWidth" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="httpBrowserTimeDifference" type="xsd:string" minOccurs="0"/>
+
         </xsd:sequence>
     </xsd:complexType>
     <xsd:complexType name="ShipTo">
@@ -1154,6 +1208,8 @@
             <xsd:element name="destinationCode" type="xsd:string" minOccurs="0"/>
             <xsd:element name="pointOfReference" type="tns:boolean" minOccurs="0"/>
             <xsd:element name="default" type="tns:boolean" minOccurs="0"/>
+            <xsd:element name="destinationTypes" type="xsd:string" minOccurs="0"/>
+
         </xsd:sequence>
     </xsd:complexType>
     <xsd:complexType name="ShipFrom">
@@ -1201,18 +1257,31 @@
             <xsd:element name="level2Eligible" type="xsd:string" minOccurs="0"/>
             <xsd:element name="level3Eligible" type="xsd:string" minOccurs="0"/>
             <xsd:element name="productCategory" type="xsd:string" minOccurs="0"/>
-            <xsd:element name="crossBorderIndicator" type="xsd:string" minOccurs="0"/>
             <xsd:element name="billingCurrency" type="xsd:string" minOccurs="0"/>
             <xsd:element name="billingCurrencyNumericCode" type="xsd:string" minOccurs="0"/>
             <xsd:element name="billingCurrencyMinorDigits" type="xsd:string" minOccurs="0"/>
-            <xsd:element name="octFastFundsIndicator" type="xsd:string" minOccurs="0"/>
-            <xsd:element name="octBlockIndicator" type="xsd:string" minOccurs="0"/>
-            <xsd:element name="onlineGamblingBlockIndicator" type="xsd:string" minOccurs="0"/>
             <xsd:element name="productName" type="xsd:string" minOccurs="0"/>
             <xsd:element name="usage" type="xsd:string" minOccurs="0"/>
             <xsd:element name="prepaidReloadable" type="xsd:string" minOccurs="0"/>
             <xsd:element name="prepaidType" type="xsd:string" minOccurs="0"/>
             <xsd:element name="brands" type="tns:Brands" minOccurs="0" maxOccurs="5"/>
+            <xsd:element name="fastFundsBusinessFundedTransferDomestic" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="fastFundsBusinessFundedTransferCrossBorder" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="fastFundsConsumerFundedTransferDomestic" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="fastFundsConsumerFundedTransferCrossBorder" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="octBusinessFundedTransferDomestic" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="octBusinessFundedTransferCrossBorder" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="octConsumerFundedTransferDomestic" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="octConsumerFundedTransferCrossBorder" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="octGamblingDomestic" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="octGamblingCrossBorder" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="fastFundsGamblingDomestic" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="fastFundsGamblingCrossBorder" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="octGeoRestrictionIndicator" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="comboCardType" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="prepaidIndicator" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="passPhrase" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="personalData" type="xsd:string" minOccurs="0"/>
         </xsd:sequence>
     </xsd:complexType>
     <xsd:complexType name="Check">
@@ -1231,6 +1300,7 @@
             <xsd:element name="terminalState" type="xsd:string" minOccurs="0"/>
             <xsd:element name="customerPresent" type="xsd:string" minOccurs="0"/>
             <xsd:element name="checkTransactionCode" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="disableAccountValidation" type="tns:boolean" minOccurs="0"/>
         </xsd:sequence>
     </xsd:complexType>
     <xsd:complexType name="BML">
@@ -1367,6 +1437,13 @@
 			<xsd:element name="eventType" type="xsd:string" minOccurs="0" />
 		    <xsd:element name="promotionCode" type="xsd:string" minOccurs="0" />
 			<xsd:element name="enrollmentID" type="xsd:string" minOccurs="0" />
+            <xsd:element name="staySignedInIndicator" type="xsd:string" minOccurs="0" />
+            <xsd:element name="authenticationData" type="xsd:string" minOccurs="0" />
+            <xsd:element name="deviceID" type="xsd:string" minOccurs="0" />
+            <xsd:element name="httpResponse" type="xsd:string" minOccurs="0" />
+            <xsd:element name="errorCode" type="xsd:string" minOccurs="0" />
+            <xsd:element name="errorDescription" type="xsd:string" minOccurs="0" />
+            <xsd:element name="pinURL" type="xsd:string" minOccurs="0" />
         </xsd:sequence>
     </xsd:complexType>
 
@@ -1389,6 +1466,7 @@
             <xsd:element name="originalCurrency" type="xsd:string" minOccurs="0"/>
             <xsd:element name="exchangeRate" type="tns:amount" minOccurs="0"/>
             <xsd:element name="exchangeRateTimeStamp" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="exchangeRateType" type="xsd:string" minOccurs="0"/>
             <xsd:element name="additionalAmountType0" type="xsd:string" minOccurs="0"/>
             <xsd:element name="additionalAmount0" type="xsd:string" minOccurs="0"/>
             <xsd:element name="additionalAmountType1" type="xsd:string" minOccurs="0"/>
@@ -1481,6 +1559,7 @@
             <xsd:element name="amount" type="tns:amount" minOccurs="0"/>
             <xsd:element name="numberOfPayments" type="xsd:integer" minOccurs="0"/>
             <xsd:element name="numberOfPaymentsToAdd" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="sequenceNumber" type="xsd:integer" minOccurs="0"/>
             <xsd:element name="automaticRenew" type="tns:boolean" minOccurs="0"/>
             <xsd:element name="frequency" type="xsd:string" minOccurs="0"/>
             <xsd:element name="startDate" type="xsd:string" minOccurs="0"/>
@@ -1506,6 +1585,7 @@
     <xsd:complexType name="TokenSource">
         <xsd:sequence>
             <xsd:element name="transientToken" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="networkTokenOption" type="xsd:string" minOccurs="0"/>
         </xsd:sequence>
     </xsd:complexType>
     <xsd:complexType name="PaymentNetworkToken">
@@ -1522,7 +1602,15 @@
         <xsd:sequence>
             <xsd:element name="enabled" type="tns:boolean" minOccurs="0"/>
             <xsd:element name="profile" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="pausedRequestID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="authentication" type="tns:Authentication" minOccurs="0"/>
             <xsd:element name="travelData" type="tns:DecisionManagerTravelData" minOccurs="0"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="Authentication">
+        <xsd:sequence>
+            <xsd:element name="outOfScope" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="exemption" type="xsd:string" minOccurs="0"/>
         </xsd:sequence>
     </xsd:complexType>
     <xsd:complexType name="DecisionManagerTravelData">
@@ -1794,6 +1882,7 @@
             <xsd:element name="billingConversionRate" type="tns:amount" minOccurs="0"/>
 
             <xsd:element name="firstName"  type="xsd:string" minOccurs="0"/>
+            <xsd:element name="middleName"  type="xsd:string" minOccurs="0"/>
             <xsd:element name="middleInitial"  type="xsd:string" minOccurs="0"/>
             <xsd:element name="address"  type="xsd:string" minOccurs="0"/>
             <xsd:element name="city"  type="xsd:string" minOccurs="0"/>
@@ -1819,6 +1908,7 @@
             <xsd:element name="dateOfBirth" type="xsd:string" minOccurs="0"/>
 
             <xsd:element name="firstName" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="middleName" type="xsd:string" minOccurs="0"/>
             <xsd:element name="middleInitial" type="xsd:string" minOccurs="0"/>
             <xsd:element name="lastName" type="xsd:string" minOccurs="0"/>
             <xsd:element name="phoneNumber" type="xsd:string" minOccurs="0"/>
@@ -1907,6 +1997,8 @@
             <xsd:element name="paypal" type="tns:PayPal" minOccurs="0" />
             <xsd:element name="merchantDefinedData"
                          type="tns:MerchantDefinedData" minOccurs="0" />
+            <xsd:element name="auxiliaryData"
+                         type="tns:AuxiliaryData" minOccurs="0" />
             <xsd:element name="merchantSecureData"
                          type="tns:MerchantSecureData" minOccurs="0" />
             <xsd:element name="jpo" type="tns:JPO" minOccurs="0" />
@@ -1933,6 +2025,11 @@
                          minOccurs="0" />
             <xsd:element name="giftCardReversalService" type="tns:GiftCardReversalService"
                          minOccurs="0" />
+            <xsd:element name="giftCardReloadService" type="tns:GiftCardReloadService"
+                         minOccurs="0" />
+            <xsd:element name="giftCardRefundService" type="tns:GiftCardRefundService"
+                         minOccurs="0" />
+
             <xsd:element name="verificationService" type="tns:VerificationService" minOccurs="0" />
             <xsd:element name="ccSaleService" type="tns:CCSaleService" minOccurs="0" />
 
@@ -1958,6 +2055,8 @@
                          type="tns:ECCreditService" minOccurs="0" />
             <xsd:element name="ecAuthenticateService"
                          type="tns:ECAuthenticateService" minOccurs="0" />
+            <xsd:element name="payerAuthSetupService"
+                         type="tns:PayerAuthSetupService" minOccurs="0" />
             <xsd:element name="payerAuthEnrollService"
                          type="tns:PayerAuthEnrollService" minOccurs="0" />
             <xsd:element name="payerAuthValidateService"
@@ -2112,6 +2211,7 @@
             <xsd:element name="merchantTransactionIdentifier" type="xsd:string" minOccurs="0" />
             <xsd:element name="hostedDataCreateService" type="tns:HostedDataCreateService" minOccurs="0"/>
             <xsd:element name="hostedDataRetrieveService" type="tns:HostedDataRetrieveService" minOccurs="0"/>
+            <xsd:element name="merchantDomainName" type="xsd:string" minOccurs="0" />
             <xsd:element name="merchantCategoryCode" type="xsd:string" minOccurs="0" />
             <xsd:element name="merchantCategoryCodeDomestic" type="xsd:string" minOccurs="0" />
             <xsd:element name="salesSlipNumber" type="xsd:string" minOccurs="0" />
@@ -2176,6 +2276,11 @@
                          minOccurs="0" />
             <xsd:element name="mPOS" type="tns:mPOS" minOccurs="0" />
             <xsd:element name="abortService" type="tns:AbortService" minOccurs="0" />
+            <xsd:element name="ignoreRelaxAVS" type="tns:boolean" minOccurs="0" />
+            <xsd:element name="agencyInformation" type="tns:AgencyInformation" minOccurs="0" />
+            <xsd:element name="autoRental" type="tns:AutoRental" minOccurs="0" />
+            <xsd:element name="healthCare" type="tns:HealthCare" minOccurs="0" maxOccurs="10"/>
+            <xsd:element name="payByPoints" type="tns:payByPoints" minOccurs="0"/>
         </xsd:sequence>
 
     </xsd:complexType>
@@ -2205,6 +2310,7 @@
             <xsd:element name="receiptData" type="xsd:string" minOccurs="0"/>
             <xsd:element name="discountApplied" type="tns:amount" minOccurs="0"/>
             <xsd:element name="description" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="additionalCode" type="xsd:string" minOccurs="0"/>
         </xsd:sequence>
     </xsd:complexType>
 
@@ -2220,6 +2326,17 @@
     <xsd:complexType name="PromotionGroupReply">
         <xsd:sequence>
             <xsd:element name="discountApplied" type="tns:amount" minOccurs="0"/>
+        </xsd:sequence>
+        <xsd:attribute name="id" type="xsd:integer" use="optional"/>
+    </xsd:complexType>
+
+    <xsd:complexType name="BalanceInfo">
+        <xsd:sequence>
+            <xsd:element name="accountType" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="amount" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="amountType" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="currency" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="sign" type="xsd:string" minOccurs="0"/>
         </xsd:sequence>
         <xsd:attribute name="id" type="xsd:integer" use="optional"/>
     </xsd:complexType>
@@ -2307,6 +2424,8 @@
             <xsd:element name="emsTransactionRiskScore" type="xsd:string" minOccurs="0" />
             <xsd:element name="reconciliationReferenceNumber" type="xsd:string" minOccurs="0" />
             <xsd:element name="cardReferenceData" type="xsd:string" minOccurs="0" />
+			<xsd:element name="partialPANandIBAN" type="xsd:string" minOccurs="0" />
+			<xsd:element name="issuerPINrequest" type="xsd:string" minOccurs="0" />
         </xsd:sequence>
     </xsd:complexType>
 
@@ -2358,6 +2477,7 @@
             <xsd:element name="accountBalanceCurrency" type="xsd:string" minOccurs="0"/>
             <xsd:element name="accountBalanceSign" type="xsd:string" minOccurs="0"/>
             <xsd:element name="cardReferenceData" type="xsd:string" minOccurs="0" />
+			<xsd:element name="partialPANandIBAN" type="xsd:string" minOccurs="0" />
         </xsd:sequence>
     </xsd:complexType>
 
@@ -2585,10 +2705,19 @@
             <xsd:element name="fraudShieldIndicators" type="xsd:string" minOccurs="0"/>
         </xsd:sequence>
     </xsd:complexType>
+    <xsd:complexType name="PayerAuthSetupReply">
+        <xsd:sequence>
+            <xsd:element name="reasonCode" type="xsd:integer"/>
+            <xsd:element name="referenceID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="deviceDataCollectionURL" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="accessToken" type="xsd:string" minOccurs="0"/>
+        </xsd:sequence>
+    </xsd:complexType>
     <xsd:complexType name="PayerAuthEnrollReply">
         <xsd:sequence>
             <xsd:element name="reasonCode" type="xsd:integer"/>
             <xsd:element name="acsURL" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="accessToken" type="xsd:string" minOccurs="0"/>
             <xsd:element name="authenticationResult" type="xsd:string" minOccurs="0"/>
             <xsd:element name="authenticationStatusMessage" type="xsd:string" minOccurs="0"/>
             <xsd:element name="cavv" type="xsd:string" minOccurs="0"/>
@@ -2609,6 +2738,36 @@
             <xsd:element name="authenticationTransactionID" type="xsd:string" minOccurs="0"/>
             <xsd:element name="directoryServerTransactionID" type="xsd:string" minOccurs="0"/>
             <xsd:element name="challengeRequired" type="tns:boolean" minOccurs="0"/>
+            <xsd:element name="threeDSServerTransactionID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="acsRenderingType" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="acsTransactionID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="authenticationType" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="cardholderMessage" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="directoryServerErrorCode" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="directoryServerErrorDescription" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="ivrEnabledMessage" type="tns:boolean" minOccurs="0"/>
+            <xsd:element name="ivrEncryptionKey" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="ivrEncryptionMandatory" type="tns:boolean" minOccurs="0"/>
+            <xsd:element name="ivrEncryptionType" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="ivrLabel" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="ivrPrompt" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="ivrStatusMessage" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="sdkTransactionID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="stepUpUrl" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="whiteListStatus" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="whiteListStatusSource" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="effectiveAuthenticationType" type="xsd:string"  minOccurs="0"/>
+            <xsd:element name="authenticationStatusReason" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="networkScore" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="authorizationPayload" type="xsd:base64Binary" minOccurs="0"/>
+            <xsd:element name="challengeCancelCode" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="decoupledAuthenticationIndicator" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="cardBin" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="cardTypeName" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="transactionIndicator" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="resendCountRemaining" type="xsd:string" minOccurs="0"/>
+
+
         </xsd:sequence>
     </xsd:complexType>
     <xsd:complexType name="PayerAuthValidateReply">
@@ -2627,6 +2786,23 @@
             <xsd:element name="paresStatus" type="xsd:string" minOccurs="0"/>
             <xsd:element name="specificationVersion" type="xsd:string" minOccurs="0"/>
             <xsd:element name="directoryServerTransactionID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="threeDSServerTransactionID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="acsRenderingType" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="acsTransactionID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="authenticationType" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="directoryServerErrorCode" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="directoryServerErrorDescription" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="interactionCounter" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="sdkTransactionID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="whiteListStatus" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="whiteListStatusSource" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="effectiveAuthenticationType" type="xsd:string"  minOccurs="0"/>
+            <xsd:element name="authenticationStatusReason" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="challengeCancelCode" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="authorizationPayload" type="xsd:base64Binary" minOccurs="0"/>
+            <xsd:element name="cardBin" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="cardTypeName" type="xsd:string" minOccurs="0"/>
+
         </xsd:sequence>
     </xsd:complexType>
     <xsd:complexType name="TaxReplyItem">
@@ -2732,6 +2908,7 @@
             <xsd:element name="internetInfoCode" type="xsd:string" minOccurs="0"/>
             <xsd:element name="phoneInfoCode" type="xsd:string" minOccurs="0"/>
             <xsd:element name="suspiciousInfoCode" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="deviceBehaviorInfoCode" type="xsd:string" minOccurs="0"/>
             <xsd:element name="velocityInfoCode" type="xsd:string" minOccurs="0"/>
             <xsd:element name="identityInfoCode" type="xsd:string" minOccurs="0"/>
             <xsd:element name="ipCountry" type="xsd:string" minOccurs="0"/>
@@ -3010,6 +3187,9 @@
             <xsd:element name="instrumentIdentifierStatus" type="xsd:string" minOccurs="0"/>
             <xsd:element name="instrumentIdentifierSuccessorID" type="xsd:string" minOccurs="0"/>
             <xsd:element name="subsequentAuthTransactionID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="latestCardSuffix" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="latestCardExpirationMonth" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="latestCardExpirationYear" type="xsd:string" minOccurs="0"/>
         </xsd:sequence>
     </xsd:complexType>
     <xsd:complexType name="PaySubscriptionDeleteReply">
@@ -3386,7 +3566,8 @@
             <xsd:element name="additionalFields" type="tns:AdditionalFields" minOccurs="0" maxOccurs="1" />
             <xsd:element name="morphingElement" type="tns:MorphingElement" minOccurs="0" maxOccurs="1" />
             <xsd:element name="providerFields" type="tns:ProviderFields" minOccurs="0" maxOccurs="1" />
-            <xsd:element name="travel" type="tns:Travel" minOccurs="0" maxOccurs="1" />           
+            <xsd:element name="travel" type="tns:Travel" minOccurs="0" maxOccurs="1" />
+            <xsd:element name="unavailableInfoCode" type="xsd:string" minOccurs="0"/>
         </xsd:sequence>
     </xsd:complexType>
     <xsd:complexType name="ProviderFields">
@@ -3466,6 +3647,7 @@
         <xsd:sequence>
             <xsd:element name="eventType" type="xsd:string" minOccurs="0"/>
             <xsd:element name="eventInfo" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="eventDeviceBehaviorInfo" type="xsd:string" minOccurs="0"/>
             <xsd:element name="eventHotlistInfo" type="xsd:string" minOccurs="0"/>
             <xsd:element name="eventPolicy" type="xsd:string" minOccurs="0"/>
             <xsd:element name="eventVelocityInfoCode" type="xsd:string" minOccurs="0"/>
@@ -3495,7 +3677,17 @@
             <xsd:element name="validHours" type="xsd:string" minOccurs="0"/>
             <xsd:element name="marginRatePercentage" type="xsd:string" minOccurs="0"/>
             <xsd:element name="reconciliationID" type="xsd:string" minOccurs="0"/>
+			<xsd:element name="paymentCurrencyOffer" type="tns:paymentCurrencyOffer" minOccurs="0" maxOccurs="150"/>
         </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="paymentCurrencyOffer">
+        <xsd:sequence>
+			<xsd:element name="amount" type="tns:amount" minOccurs="0" />
+            <xsd:element name="currency" type="xsd:string" minOccurs="0" />
+            <xsd:element name="exchangeRate" type="xsd:string" minOccurs="0" />
+            <xsd:element name="marginRatePercentage" type="xsd:string" minOccurs="0" />
+        </xsd:sequence>
+		<xsd:attribute name="id" type="xsd:integer" use="required"/>
     </xsd:complexType>
     <xsd:complexType name="CCDCCUpdateReply">
         <xsd:sequence>
@@ -3560,6 +3752,7 @@
             <xsd:element name="processorTransactionID" type="xsd:string" minOccurs="0"/>
             <xsd:element name="ibanSuffix" type="xsd:string" minOccurs="0"/>
             <xsd:element name="processorResponse" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="processorToken" type="xsd:string" minOccurs="0"/>
             <xsd:element name="dateTime" type="tns:dateTime" minOccurs="0"/>
         </xsd:sequence>
     </xsd:complexType>
@@ -3803,6 +3996,7 @@
             <xsd:element name="ecDebitReply" type="tns:ECDebitReply" minOccurs="0"/>
             <xsd:element name="ecCreditReply" type="tns:ECCreditReply" minOccurs="0"/>
             <xsd:element name="ecAuthenticateReply" type="tns:ECAuthenticateReply" minOccurs="0"/>
+            <xsd:element name="payerAuthSetupReply" type="tns:PayerAuthSetupReply" minOccurs="0"/>
             <xsd:element name="payerAuthEnrollReply" type="tns:PayerAuthEnrollReply" minOccurs="0"/>
             <xsd:element name="payerAuthValidateReply" type="tns:PayerAuthValidateReply" minOccurs="0"/>
             <xsd:element name="taxReply" type="tns:TaxReply" minOccurs="0"/>
@@ -3837,6 +4031,7 @@
             <xsd:element name="riskUpdateReply" type="tns:RiskUpdateReply" minOccurs="0"/>
             <xsd:element name="fraudUpdateReply" type="tns:FraudUpdateReply" minOccurs="0"/>
             <xsd:element name="caseManagementActionReply" type="tns:CaseManagementActionReply" minOccurs="0"/>
+            <xsd:element name="decisionEarlyReply" type="tns:DecisionEarlyReply" minOccurs="0"/>
             <xsd:element name="decisionReply" type="tns:DecisionReply" minOccurs="0"/>
             <xsd:element name="payPalRefundReply" type="tns:PayPalRefundReply" minOccurs="0"/>
             <xsd:element name="payPalAuthReversalReply" type="tns:PayPalAuthReversalReply" minOccurs="0"/>
@@ -3897,6 +4092,7 @@
             <xsd:element name="feeProgramIndicator" type="xsd:string" minOccurs="0"/>
             <xsd:element name="installment" type="tns:Installment" minOccurs="0" />
             <xsd:element name="paymentAccountReference" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="paymentSolution" type="xsd:string" minOccurs="0"/>
             <xsd:element name="authIndicator" type="xsd:string" minOccurs="0"/>
             <xsd:element name="ucaf" type="tns:UCAF" minOccurs="0"/>
             <xsd:element name="network" type="tns:Network" minOccurs="0" maxOccurs="100"/>
@@ -3908,6 +4104,7 @@
             <xsd:element name="personalID" type="tns:PersonalID" minOccurs="0" />
             <xsd:element name="acquirerMerchantNumber" type="xsd:string" minOccurs="0" />
             <xsd:element name="pos" type="tns:Pos" minOccurs="0" />
+            <xsd:element name="balanceInfo" type="tns:BalanceInfo" minOccurs="0" maxOccurs="6"/>
             <xsd:element name="issuerMessageAction" type="xsd:string" minOccurs="0" />
             <xsd:element name="customerID" type="xsd:string" minOccurs="0" />
 
@@ -3928,9 +4125,12 @@
             <xsd:element name="giftCardRedemptionReply" type="tns:GiftCardRedemptionReply" minOccurs="0"/>
             <xsd:element name="giftCardVoidReply" type="tns:GiftCardVoidReply" minOccurs="0"/>
             <xsd:element name="giftCardReversalReply" type="tns:GiftCardReversalReply" minOccurs="0"/>
+            <xsd:element name="giftCardReloadReply" type="tns:GiftCardReloadReply" minOccurs="0"/>
+            <xsd:element name="giftCardRefundReply" type="tns:GiftCardRefundReply" minOccurs="0"/>
             <xsd:element name="ccCheckStatusReply" type="tns:CCCheckStatusReply" minOccurs="0"/>
             <xsd:element name="ecAVSReply" type="tns:ECAVSReply" minOccurs="0"/>
             <xsd:element name="abortReply" type="tns:AbortReply" minOccurs="0"/>
+            <xsd:element name="payByPoints" type="tns:payByPoints" minOccurs="0"/>
             <xsd:element name="reserved" type="tns:ReplyReserved" minOccurs="0"/>
 
             <!--ReplyReserved should always be the last element in the xsd, new elements should be added before this-->
@@ -4193,6 +4393,8 @@
 		  	<xsd:element name="maximumTotalCount" type="xsd:string" minOccurs="0"/>
 			<xsd:element name="gracePeriodDuration" type="xsd:string" minOccurs="0"/>
 			<xsd:element name="gracePeriodDurationType" type="xsd:string" minOccurs="0"/>		 
+            <xsd:element name="planID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="interestAmount" type="xsd:string" minOccurs="0"/>
         </xsd:sequence>
     </xsd:complexType>
     <xsd:complexType name="MDDField">
@@ -4225,6 +4427,18 @@
             <xsd:element name="field19" type="xsd:string" minOccurs="0"/>
             <xsd:element name="field20" type="xsd:string" minOccurs="0"/>
             <xsd:element name="mddField" type="tns:MDDField" minOccurs="0" maxOccurs="100"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="AuxiliaryField">
+        <xsd:simpleContent>
+            <xsd:extension base="xsd:string">
+                <xsd:attribute name="id" type="xsd:integer" use="required"/>
+            </xsd:extension>
+        </xsd:simpleContent>
+    </xsd:complexType>
+    <xsd:complexType name="AuxiliaryData">
+        <xsd:sequence>
+            <xsd:element name="field" type="tns:AuxiliaryField" minOccurs="0" maxOccurs="900"/>
         </xsd:sequence>
     </xsd:complexType>
     <xsd:complexType name="MerchantSecureData">
@@ -4345,6 +4559,7 @@
     <xsd:complexType name="EmvRequest">
         <xsd:sequence>
             <xsd:element name="combinedTags" type="xsd:string" minOccurs="0"/>
+			<xsd:element name="repeat" type="xsd:string" minOccurs="0"/>
             <xsd:element name="cardSequenceNumber" type="xsd:string" minOccurs="0"/>
             <xsd:element name="aidAndDFname" type="xsd:string" minOccurs="0"/>
             <xsd:element name="fallback" type="xsd:string" minOccurs="0"/>
@@ -4355,7 +4570,7 @@
     <xsd:complexType name="EmvReply">
         <xsd:sequence>
             <xsd:element name="combinedTags" type="xsd:string" minOccurs="0"/>
-            <xsd:element name="decryptedRequestTags" type="xsd:string" minOccurs="0"/>
+			<xsd:element name="decryptedRequestTags" type="xsd:string" minOccurs="0"/>
             <xsd:element name="chipValidationResults" type="xsd:string" minOccurs="0"/>
             <xsd:element name="chipValidationType" type="xsd:string" minOccurs="0"/>
         </xsd:sequence>
@@ -4451,7 +4666,59 @@
             <xsd:element name="returnState" type="xsd:string" minOccurs="0" />
             <xsd:element name="returnTime" type="xsd:integer" minOccurs="0" />
             <xsd:element name="specialProgramCode" type="xsd:string" minOccurs="0" />
+            <xsd:element name="noShowIndicator" type="tns:boolean" minOccurs="0" />
+            <xsd:element name="timePeriod" type="xsd:string" minOccurs="0" />
+            <xsd:element name="weeklyRentalRate" type="tns:amount" minOccurs="0" />
+            <xsd:element name="distanceUnit" type="xsd:string" minOccurs="0" />
+            <xsd:element name="rentalLocationID" type="xsd:string" minOccurs="0" />
+            <xsd:element name="vehicleInsuranceIndicator" type="tns:boolean" minOccurs="0" />
+            <xsd:element name="programCode" type="xsd:string" minOccurs="0" />
+            <xsd:element name="otherCharges" type="tns:amount" minOccurs="0" />
+            <xsd:element name="taxRate" type="tns:amount" minOccurs="0" />
+            <xsd:element name="taxIndicator" type="tns:boolean" minOccurs="0" />
+            <xsd:element name="taxStatusIndicator" type="xsd:string" minOccurs="0" />
+            <xsd:element name="taxAmount" type="tns:amount" minOccurs="0" />
+            <xsd:element name="taxType" type="xsd:string" minOccurs="0" />
+            <xsd:element name="taxSummary" type="xsd:string" minOccurs="0" />
+            <xsd:element name="returnLocation" type="xsd:string" minOccurs="0" />
+            <xsd:element name="odometerReading" type="xsd:integer" minOccurs="0" />
+            <xsd:element name="vehicleIdentificationNumber" type="xsd:string" minOccurs="0" />
+            <xsd:element name="commodityCode" type="xsd:string" minOccurs="0" />
+            <xsd:element name="companyId" type="xsd:string" minOccurs="0" />
+            <xsd:element name="regularMileageCost" type="tns:amount" minOccurs="0" />
+            <xsd:element name="towingCharge" type="tns:amount" minOccurs="0" />
+            <xsd:element name="extraCharge" type="tns:amount" minOccurs="0" />
+            <xsd:element name="additionalDrivers" type="xsd:integer" minOccurs="0" />
+            <xsd:element name="rentalAddress" type="xsd:string" minOccurs="0" />
+            <xsd:element name="driverAge" type="xsd:integer" minOccurs="0" />
+            <xsd:element name="vehicleMake" type="xsd:string" minOccurs="0" />
+            <xsd:element name="vehicleModel" type="xsd:string" minOccurs="0" />
+            <xsd:element name="corporateClientCode" type="xsd:string" minOccurs="0" />
+            <xsd:element name="phoneCharge" type="tns:amount" minOccurs="0" />
+            <xsd:element name="gpsCharge" type="tns:amount" minOccurs="0" />
+            <xsd:element name="pickupLocation" type="xsd:string" minOccurs="0" />
+            <xsd:element name="taxAmountSign" type="xsd:string" minOccurs="0"/>
         </xsd:sequence>
+    </xsd:complexType>
+
+    <xsd:complexType name="AutoRental">
+        <xsd:sequence>
+            <xsd:element name="promotion" type="tns:Promotion" minOccurs="0"/>
+        </xsd:sequence>
+    </xsd:complexType>
+
+    <xsd:complexType name="AgencyInformation">
+        <xsd:sequence>
+            <xsd:element name="code" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="name" type="xsd:string" minOccurs="0"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="HealthCare">
+        <xsd:sequence>
+            <xsd:element name="amountType" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="amount" type="tns:amount" minOccurs="0"/>
+        </xsd:sequence>
+        <xsd:attribute name="id" type="xsd:integer" use="required"/>
     </xsd:complexType>
 
     <xsd:complexType name="VCReply">
@@ -4551,6 +4818,7 @@
         <xsd:sequence>
             <xsd:element name="mode" type="xsd:string" minOccurs="0" />
             <xsd:element name="networkOrder" type="xsd:string" minOccurs="0" />
+            <xsd:element name="retrievalReferenceNumber" type="xsd:string" minOccurs="0" />
         </xsd:sequence>
         <xsd:attribute name="run" type="tns:boolean" use="required"/>
     </xsd:complexType>
@@ -4559,6 +4827,7 @@
         <xsd:sequence>
             <xsd:element name="reasonCode" type="xsd:integer"/>
             <xsd:element name="requestDateTime" type="tns:dateTime" minOccurs="0"/>
+            <xsd:element name="cardCategory" type="xsd:string" minOccurs="0"/>
         </xsd:sequence>
     </xsd:complexType>
     <xsd:complexType name="issuer">
@@ -4569,6 +4838,8 @@
             <xsd:element name="countryNumericCode" type="xsd:string" minOccurs="0"/>
             <xsd:element name="phoneNumber" type="xsd:string" minOccurs="0"/>
             <xsd:element name="responseCode" type="xsd:string" minOccurs="0" />
+            <xsd:element name="riskAnalysisExemptionResult" type="xsd:string" minOccurs="0" />
+            <xsd:element name="trustedMerchantExemptionResult" type="xsd:string" minOccurs="0" />
         </xsd:sequence>
     </xsd:complexType>
     <xsd:complexType name="GETVisaCheckoutDataService">
@@ -4823,6 +5094,24 @@
         <xsd:attribute name="run" type="tns:boolean" use="required"/>
     </xsd:complexType>
 
+    <xsd:complexType name="GiftCardReloadService">
+        <xsd:sequence>
+            <xsd:element name="reconciliationID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="commerceIndicator" type="xsd:string" minOccurs="0"/>
+        </xsd:sequence>
+        <xsd:attribute name="run" type="tns:boolean" use="required"/>
+
+    </xsd:complexType>
+
+    <xsd:complexType name="GiftCardRefundService">
+        <xsd:sequence>
+            <xsd:element name="reconciliationID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="commerceIndicator" type="xsd:string" minOccurs="0"/>
+        </xsd:sequence>
+        <xsd:attribute name="run" type="tns:boolean" use="required"/>
+
+    </xsd:complexType>
+
     <xsd:complexType name="GiftCard">
         <xsd:sequence>
             <xsd:element name="originalRequestID" type="xsd:string" minOccurs="0"/>
@@ -4830,12 +5119,8 @@
             <xsd:element name="count" type="xsd:string" minOccurs="0"/>
             <xsd:element name="escheatable" type="tns:boolean" minOccurs="0"/>
             <xsd:element name="groupID" type="xsd:string" minOccurs="0"/>
-            <xsd:element name="securityValue" type="xsd:string" minOccurs="0"/>
             <xsd:element name="transactionPostingDate" type="xsd:string" minOccurs="0"/>
-            <xsd:element name="additionalAccountNumber" type="xsd:string" minOccurs="0"/>
-            <xsd:element name="promoCode" type="xsd:string" minOccurs="0"/>
             <xsd:element name="balanceCurrency" type="xsd:string" minOccurs="0"/>
-            <xsd:element name="extendedAccountNumber" type="xsd:string" minOccurs="0"/>
             <xsd:element name="previousBalance" type="xsd:string" minOccurs="0"/>
             <xsd:element name="currentBalance" type="xsd:string" minOccurs="0"/>
             <xsd:element name="baseCurrencyPreviousBalance" type="xsd:string" minOccurs="0"/>
@@ -4846,6 +5131,11 @@
             <xsd:element name="exchangeRate" type="xsd:string" minOccurs="0"/>
             <xsd:element name="bonusAmount" type="xsd:string" minOccurs="0"/>
             <xsd:element name="discountAmount" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="extendedAccountNumber" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="additionalAccountNumber" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="physicalCard" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="returnExtendedAccountNumber" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="promoCode" type="xsd:string" minOccurs="0"/>
         </xsd:sequence>
     </xsd:complexType>
 
@@ -4899,7 +5189,28 @@
         </xsd:sequence>
     </xsd:complexType>
 
-	<xsd:complexType name="mPOS">
+    <xsd:complexType name="GiftCardReloadReply">
+        <xsd:sequence>
+            <xsd:element name="reasonCode" type="xsd:integer"/>
+            <xsd:element name="authorizationCode" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="processorResponse" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="requestDateTime" type="tns:dateTime" minOccurs="0"/>
+            <xsd:element name="reconciliationID" type="xsd:string" minOccurs="0"/>
+        </xsd:sequence>
+    </xsd:complexType>
+
+    <xsd:complexType name="GiftCardRefundReply">
+        <xsd:sequence>
+            <xsd:element name="reasonCode" type="xsd:integer"/>
+            <xsd:element name="authorizationCode" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="processorResponse" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="requestDateTime" type="tns:dateTime" minOccurs="0"/>
+            <xsd:element name="reconciliationID" type="xsd:string" minOccurs="0"/>
+        </xsd:sequence>
+    </xsd:complexType>
+
+
+    <xsd:complexType name="mPOS">
 		<xsd:sequence>
 			<xsd:element name="deviceType" type="xsd:string" minOccurs="0" />
 		</xsd:sequence>
@@ -4907,6 +5218,8 @@
 
     <xsd:complexType name="AbortService">
         <xsd:sequence>
+            <xsd:element name="authRequestID" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="creditRequestID" type="xsd:string" minOccurs="0"/>
             <xsd:element name="cardholderVerificationMethod" type="xsd:string" minOccurs="0"/>
             <xsd:element name="commerceIndicator" type="xsd:string" minOccurs="0"/>
         </xsd:sequence>
@@ -4920,7 +5233,6 @@
             <xsd:element name="reason" type="xsd:integer" minOccurs="0"/>
         </xsd:sequence>
     </xsd:complexType>
-
     <xsd:complexType name="merchant">
         <xsd:sequence>
             <xsd:element name="acquirerBIN" type="xsd:string" minOccurs="0" maxOccurs="1"/>
@@ -4928,5 +5240,51 @@
             <xsd:element name="visaMerchantID" type="xsd:string" minOccurs="0" maxOccurs="1"/>
         </xsd:sequence>
     </xsd:complexType>
-</xsd:schema>
 
+    <xsd:complexType name="DecisionEarlyReply">
+        <xsd:sequence>
+            <xsd:element name="casePriority" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="decision" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="action" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="applicableOrderModifications" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="appliedOrderModifications" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="activeProfileReply" type="tns:ProfileReplyEarly" minOccurs="0"/>
+        </xsd:sequence>
+    </xsd:complexType>
+
+    <xsd:complexType name="ProfileReplyEarly">
+        <xsd:sequence>
+            <xsd:element name="name" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="selectedBy" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="pauseRulesTriggered" type="tns:PauseRuleResultItems" minOccurs="0"/>
+            <xsd:element name="rulesTriggered" type="tns:RuleResultItems" minOccurs="0"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="PauseRuleResultItems">
+        <xsd:sequence>
+            <xsd:element name="ruleResultItem" type="tns:PauseRuleResultItem" minOccurs="0" maxOccurs="1000"/>
+        </xsd:sequence>
+    </xsd:complexType>
+    <xsd:complexType name="PauseRuleResultItem">
+        <xsd:sequence>
+            <xsd:element name="ruleID" type="xsd:integer" minOccurs="0"/>
+            <xsd:element name="name" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="action" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="evaluation" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="orderModification" type="xsd:string" minOccurs="0"/>
+        </xsd:sequence>
+    </xsd:complexType>
+
+    <xsd:complexType name="payByPoints">
+        <xsd:sequence>
+            <xsd:element name="indicator" type="xsd:string" minOccurs="0" />
+            <xsd:element name="pointsBeforeRedemption" type="xsd:string" minOccurs="0" />
+            <xsd:element name="pointsValueBeforeRedemption" type="xsd:string" minOccurs="0" />
+            <xsd:element name="pointsRedeemed" type="xsd:string" minOccurs="0" />
+            <xsd:element name="pointsValueRedeemed" type="xsd:string" minOccurs="0" />
+            <xsd:element name="pointsAfterRedemption" type="xsd:string" minOccurs="0" />
+            <xsd:element name="pointsValueAfterRedemption" type="xsd:string" minOccurs="0" />
+        </xsd:sequence>
+    </xsd:complexType>
+
+</xsd:schema>

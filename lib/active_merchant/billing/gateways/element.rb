@@ -32,7 +32,7 @@ module ActiveMerchant #:nodoc:
 
       self.supported_countries = ['US']
       self.default_currency = 'USD'
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :diners_club, :jcb]
+      self.supported_cardtypes = %i[visa master american_express discover diners_club jcb]
 
       self.homepage_url = 'http://www.elementps.com'
       self.display_name = 'Element'
@@ -59,13 +59,13 @@ module ActiveMerchant #:nodoc:
         '1009' => STANDARD_ERROR_CODE[:foo], # Error
       }
 
-      def initialize(options={})
+      def initialize(options = {})
         requires!(options, :account_id, :account_token, :application_id, :acceptor_id, :application_name, :application_version)
         super
       end
 
-      def purchase(money, payment, options={})
-        action = purchase_action(payment)
+      def purchase(money, payment, options = {})
+        action = payment.is_a?(Check) ? 'CheckSale' : 'CreditCardSale'
 
         request = build_soap_request do |xml|
           xml.send(action, xmlns: 'https://transaction.elementexpress.com') do
@@ -89,7 +89,7 @@ module ActiveMerchant #:nodoc:
         commit(action, request, amount: money)
       end
 
-      def authorize(money, payment, options={})
+      def authorize(money, payment, options = {})
         request = build_soap_request do |xml|
           xml.CreditCardAuthorization(xmlns: 'https://transaction.elementexpress.com') do
             add_credentials(xml)
@@ -103,8 +103,8 @@ module ActiveMerchant #:nodoc:
         commit('CreditCardAuthorization', request, amount: money)
       end
 
-      def capture(money, authorization, options={})
-        trans_id, _ = split_authorization(authorization)
+      def capture(money, authorization, options = {})
+        trans_id, = split_authorization(authorization)
         options[:trans_id] = trans_id
 
         request = build_soap_request do |xml|
@@ -118,8 +118,8 @@ module ActiveMerchant #:nodoc:
         commit('CreditCardAuthorizationCompletion', request, amount: money)
       end
 
-      def refund(money, authorization, options={})
-        trans_id, _ = split_authorization(authorization)
+      def refund(money, authorization, options = {})
+        trans_id, = split_authorization(authorization)
         options[:trans_id] = trans_id
 
         request = build_soap_request do |xml|
@@ -146,9 +146,9 @@ module ActiveMerchant #:nodoc:
         commit('CreditCardCredit', request, amount: money)
       end
 
-      def void(authorization, options={})
+      def void(authorization, options = {})
         trans_id, trans_amount = split_authorization(authorization)
-        options.merge!({trans_id: trans_id, trans_amount: trans_amount, reversal_type: 'Full'})
+        options.merge!({ trans_id: trans_id, trans_amount: trans_amount, reversal_type: 'Full' })
 
         request = build_soap_request do |xml|
           xml.CreditCardReversal(xmlns: 'https://transaction.elementexpress.com') do
@@ -195,28 +195,19 @@ module ActiveMerchant #:nodoc:
         # && payment_account_query(payment_account_type: 0).success?
       end
 
-      def verify(credit_card, options={})
-        # Element has CreditCardAVSOnly (AddressVerificationService) and CheckVerification
-        case credit_card
-        when Check, CreditCard
-          action = credit_card.is_a?(Check) ? "CheckVerification" : "CreditCardAVSOnly"
-          request = build_soap_request do |xml|
-            xml.send(action, xmlns: "https://transaction.elementexpress.com") do
-              add_credentials(xml)
-              add_payment_method(xml, credit_card)
-              add_transaction(xml, 100, options)
-              add_card_terminal(xml, options)
-              add_address(xml, options)
-            end
-          end
-          commit(action, request) #, amount: credit_card)
-        else
-          # currently, Element only supports Credit, Debit, Check, and this adapter doesn't include Debit yet
-          MultiResponse.run(:use_first_response) do |r|
-            r.process { authorize(100, credit_card, options) }
-            r.process(:ignore_result) { void(r.authorization, options) }
+      def verify(credit_card, options = {})
+        request = build_soap_request do |xml|
+          xml.CreditCardAVSOnly(xmlns: 'https://transaction.elementexpress.com') do
+            add_credentials(xml)
+            add_payment_method(xml, credit_card)
+            add_transaction(xml, 0, options)
+            add_card_terminal(xml, options)
+            add_address(xml, options)
           end
         end
+
+        # send request with the transaction amount set to 0
+        commit('CreditCardAVSOnly', request)
       end
 
       # Extended API, in particular necessary to query the long-processing Check/ACH transactions
@@ -254,44 +245,6 @@ module ActiveMerchant #:nodoc:
         end
 
         commit('TransactionQuery', request) #, transaction)
-      end
-
-      def check_statuses(options = {})
-        options[:trans_date_time_begin] ||= Time.now - 10.days
-        options[:trans_date_time_end] ||= Time.now
-
-        response = query(nil, options)
-        if response.success?
-          response.query_items.map do |item|
-            { trans_id: item['transactionid'], status: item['transactionstatus'], code: item['transactionstatuscode']}
-          end
-        else
-          []
-        end
-      end
-
-      # Query PaymentAccount (store'd payment profiles). Useful in particular because sometimes
-      # `health_check` on transaction.elementexpress.com returns SUCCESS, but
-      # services.elementexpress.com returns 102 Invalid Account
-      def payment_account_query(options)
-        request = build_soap_request do |xml|
-          xml.PaymentAccountQuery(xmlns: "https://services.elementexpress.com") do
-            add_credentials(xml)
-            add_payment_account_parameters(xml, options)
-          end
-        end
-
-        commit('PaymentAccountQuery', request)
-      end
-
-      def health_check
-        request = build_soap_request do |xml |
-          xml.HealthCheck(xmlns: "https://transaction.elementexpress.com") do
-            add_credentials(xml)
-          end
-        end
-
-        response = commit('HealthCheck', request)
       end
 
       def supports_scrubbing?
@@ -465,15 +418,17 @@ module ActiveMerchant #:nodoc:
           # ReferenceNumber 50 User defined reference number
           xml.ReferenceNumber options[:order_id] || SecureRandom.hex(20)
 
-          # TicketNumber 50 Used for Direct Marketing, MOTO, and E-Commerce transactions. Required when card number is manually keyed.
-          xml.TicketNumber options[:ticket_number] if options[:ticket_number]
+          xml.PaymentType options[:payment_type] if options[:payment_type]
+          xml.SubmissionType options[:submission_type] if options[:submission_type]
+          xml.DuplicateCheckDisableFlag options[:duplicate_check_disable_flag].to_s == 'true' ? 'True' : 'False' unless options[:duplicate_check_disable_flag].nil?
+          xml.DuplicateOverrideFlag options[:duplicate_override_flag].to_s == 'true' ? 'True' : 'False' unless options[:duplicate_override_flag].nil?
         end
       end
 
       def add_card_terminal(xml, options)
         xml.terminal do
-          xml.TerminalID '01'
-          xml.CardPresentCode 'UseDefault'
+          xml.TerminalID options[:terminal_id] || '01'
+          xml.CardPresentCode options[:card_present_code] || 'UseDefault'
           xml.CardholderPresentCode 'UseDefault'
           xml.CardInputCode 'UseDefault'
           xml.CVVPresenceCode 'UseDefault'

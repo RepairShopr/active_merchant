@@ -122,10 +122,10 @@ module ActiveMerchant #:nodoc:
 
       SUCCESS_MESSAGE = 'The transaction was successful'
 
-      THREE_D_SECURE_DISPLAY_WAYS = { :main_window => 'MAINW',  # display the identification page in the main window (default value).
+      THREE_D_SECURE_DISPLAY_WAYS = { main_window: 'MAINW', # display the identification page in the main window (default value).
 
-                                      :pop_up      => 'POPUP',  # display the identification page in a pop-up window and return to the main window at the end.
-                                      :pop_ix      => 'POPIX' } # display the identification page in a pop-up window and remain in the pop-up window.
+                                      pop_up: 'POPUP',  # display the identification page in a pop-up window and return to the main window at the end.
+                                      pop_ix: 'POPIX' } # display the identification page in a pop-up window and remain in the pop-up window.
 
       OGONE_NO_SIGNATURE_DEPRECATION_MESSAGE   = 'Signature usage will be the default for a future release of ActiveMerchant. You should either begin using it, or update your configuration to explicitly disable it (signature_encryptor: none)'
       OGONE_STORE_OPTION_DEPRECATION_MESSAGE   = "The 'store' option has been renamed to 'billing_id', and its usage is deprecated."
@@ -133,9 +133,9 @@ module ActiveMerchant #:nodoc:
       self.test_url = 'https://secure.ogone.com/ncol/test/'
       self.live_url = 'https://secure.ogone.com/ncol/prod/'
 
-      self.supported_countries = ['BE', 'DE', 'FR', 'NL', 'AT', 'CH']
+      self.supported_countries = %w[BE DE FR NL AT CH]
       # also supports Airplus and UATP
-      self.supported_cardtypes = [:visa, :master, :american_express, :diners_club, :discover, :jcb, :maestro]
+      self.supported_cardtypes = %i[visa master american_express diners_club discover jcb maestro]
       self.homepage_url = 'http://www.ogone.com/'
       self.display_name = 'Ogone'
       self.default_currency = 'EUR'
@@ -204,7 +204,7 @@ module ActiveMerchant #:nodoc:
         perform_reference_credit(money, reference, options)
       end
 
-      def verify(credit_card, options={})
+      def verify(credit_card, options = {})
         MultiResponse.run(:use_first_response) do |r|
           r.process { authorize(100, credit_card, options) }
           r.process(:ignore_result) { void(r.authorization, options) }
@@ -366,10 +366,10 @@ module ActiveMerchant #:nodoc:
         response = parse(ssl_post(url(parameters['PAYID']), post_data(action, parameters)))
 
         options = {
-          :authorization => [response['PAYID'], action].join(';'),
-          :test          => test?,
-          :avs_result    => { :code => AVS_MAPPING[response['AAVCheck']] },
-          :cvv_result    => CVV_MAPPING[response['CVCCheck']]
+          authorization: [response['PAYID'], action].join(';'),
+          test: test?,
+          avs_result: { code: AVS_MAPPING[response['AAVCheck']] },
+          cvv_result: CVV_MAPPING[response['CVCCheck']]
         }
         OgoneResponse.new(successful?(response), message_from(response), response, options)
       end
@@ -432,9 +432,9 @@ module ActiveMerchant #:nodoc:
             raise "Unknown signature algorithm #{algorithm}"
           end
 
-        filtered_params = signed_parameters.select { |k, v| !v.blank? }
+        filtered_params = signed_parameters.select { |_k, v| !v.blank? }
         sha_encryptor.hexdigest(
-          filtered_params.sort_by { |k, v| k.upcase }.map { |k, v| "#{k.upcase}=#{v}#{secret}" }.join('')
+          filtered_params.sort_by { |k, _v| k.upcase }.map { |k, v| "#{k.upcase}=#{v}#{secret}" }.join('')
         ).upcase
       end
 

@@ -9,7 +9,7 @@ module ActiveMerchant #:nodoc:
       self.supported_countries = %w(AT AU BE BG BR CH CY CZ DE DK EE ES FI FR GB GI GR HK HU IE IS IT LI LT LU LV MC MT MX NL NO PL PT RO SE SG SK SI US)
       self.default_currency = 'USD'
       self.currencies_without_fractions = %w(CVE DJF GNF IDR JPY KMF KRW PYG RWF UGX VND VUV XAF XOF XPF)
-      self.supported_cardtypes = [:visa, :master, :american_express, :diners_club, :jcb, :dankort, :maestro, :discover, :elo, :naranja, :cabal, :unionpay]
+      self.supported_cardtypes = %i[visa master american_express diners_club jcb dankort maestro discover elo naranja cabal unionpay]
 
       self.money_format = :cents
 
@@ -26,16 +26,16 @@ module ActiveMerchant #:nodoc:
         '132' => STANDARD_ERROR_CODE[:incorrect_address],
         '133' => STANDARD_ERROR_CODE[:incorrect_address],
         '134' => STANDARD_ERROR_CODE[:incorrect_address],
-        '135' => STANDARD_ERROR_CODE[:incorrect_address],
+        '135' => STANDARD_ERROR_CODE[:incorrect_address]
       }
 
-      def initialize(options={})
+      def initialize(options = {})
         requires!(options, :username, :password, :merchant_account)
         @username, @password, @merchant_account = options.values_at(:username, :password, :merchant_account)
         super
       end
 
-      def purchase(money, payment, options={})
+      def purchase(money, payment, options = {})
         if options[:execute_threed] || options[:threed_dynamic]
           authorize(money, payment, options)
         else
@@ -46,7 +46,7 @@ module ActiveMerchant #:nodoc:
         end
       end
 
-      def authorize(money, payment, options={})
+      def authorize(money, payment, options = {})
         requires!(options, :order_id)
         post = init_post(options)
         add_invoice(post, money, options)
@@ -59,32 +59,46 @@ module ActiveMerchant #:nodoc:
         add_3ds_authenticated_data(post, options)
         add_splits(post, options)
         add_recurring_contract(post, options)
+        add_network_transaction_reference(post, options)
         commit('authorise', post, options)
       end
 
-      def capture(money, authorization, options={})
+      def capture(money, authorization, options = {})
         post = init_post(options)
         add_invoice_for_modification(post, money, options)
         add_reference(post, authorization, options)
         add_splits(post, options)
+        add_network_transaction_reference(post, options)
         commit('capture', post, options)
       end
 
-      def refund(money, authorization, options={})
+      def refund(money, authorization, options = {})
         post = init_post(options)
         add_invoice_for_modification(post, money, options)
-        add_original_reference(post, authorization, options)
+        add_reference(post, authorization, options)
         add_splits(post, options)
+        add_network_transaction_reference(post, options)
         commit('refund', post, options)
       end
 
-      def void(authorization, options={})
+      def credit(money, payment, options = {})
         post = init_post(options)
-        add_reference(post, authorization, options)
-        commit('cancel', post, options)
+        add_invoice(post, money, options)
+        add_payment(post, payment, options)
+        add_shopper_reference(post, options)
+        add_network_transaction_reference(post, options)
+        commit('refundWithData', post, options)
       end
 
-      def adjust(money, authorization, options={})
+      def void(authorization, options = {})
+        post = init_post(options)
+        endpoint = options[:cancel_or_refund] ? 'cancelOrRefund' : 'cancel'
+        add_reference(post, authorization, options)
+        add_network_transaction_reference(post, options)
+        commit(endpoint, post, options)
+      end
+
+      def adjust(money, authorization, options = {})
         post = init_post(options)
         add_invoice_for_modification(post, money, options)
         add_reference(post, authorization, options)
@@ -92,7 +106,7 @@ module ActiveMerchant #:nodoc:
         commit('adjustAuthorisation', post, options)
       end
 
-      def store(credit_card, options={})
+      def store(credit_card, options = {})
         requires!(options, :order_id)
         post = init_post(options)
         add_invoice(post, 0, options)
@@ -115,7 +129,7 @@ module ActiveMerchant #:nodoc:
         end
       end
 
-      def unstore(options={})
+      def unstore(options = {})
         requires!(options, :shopper_reference, :recurring_detail_reference)
         post = {}
 
@@ -126,7 +140,7 @@ module ActiveMerchant #:nodoc:
         commit('disable', post, options)
       end
 
-      def verify(credit_card, options={})
+      def verify(credit_card, options = {})
         MultiResponse.run(:use_first_response) do |r|
           r.process { authorize(0, credit_card, options) }
           options[:idempotency_key] = nil
@@ -196,9 +210,6 @@ module ActiveMerchant #:nodoc:
 
       def add_extra_data(post, payment, options)
         post[:telephoneNumber] = options[:billing_address][:phone] if options.dig(:billing_address, :phone)
-        post[:shopperEmail] = options[:shopper_email] if options[:shopper_email]
-        post[:shopperIP] = options[:shopper_ip] if options[:shopper_ip]
-        post[:shopperStatement] = options[:shopper_statement] if options[:shopper_statement]
         post[:fraudOffset] = options[:fraud_offset] if options[:fraud_offset]
         post[:selectedBrand] = options[:selected_brand] if options[:selected_brand]
         post[:selectedBrand] ||= NETWORK_TOKENIZATION_CARD_SOURCE[payment.source.to_s] if payment.is_a?(NetworkTokenizationCreditCard)
@@ -212,11 +223,34 @@ module ActiveMerchant #:nodoc:
         post[:additionalData][:authorisationType] = options[:authorisation_type] if options[:authorisation_type]
         post[:additionalData][:adjustAuthorisationData] = options[:adjust_authorisation_data] if options[:adjust_authorisation_data]
         post[:additionalData][:industryUsage] = options[:industry_usage] if options[:industry_usage]
-        post[:additionalData][:updateShopperStatement] = options[:update_shopper_statement] if options[:update_shopper_statement]
         post[:additionalData][:RequestedTestAcquirerResponseCode] = options[:requested_test_acquirer_response_code] if options[:requested_test_acquirer_response_code] && test?
         post[:deviceFingerprint] = options[:device_fingerprint] if options[:device_fingerprint]
+        add_shopper_data(post, options)
         add_risk_data(post, options)
         add_shopper_reference(post, options)
+        add_merchant_data(post, options)
+      end
+
+      def add_shopper_data(post, options)
+        post[:shopperEmail] = options[:email] if options[:email]
+        post[:shopperEmail] = options[:shopper_email] if options[:shopper_email]
+        post[:shopperIP] = options[:ip] if options[:ip]
+        post[:shopperIP] = options[:shopper_ip] if options[:shopper_ip]
+        post[:shopperStatement] = options[:shopper_statement] if options[:shopper_statement]
+        post[:additionalData][:updateShopperStatement] = options[:update_shopper_statement] if options[:update_shopper_statement]
+      end
+
+      def add_merchant_data(post, options)
+        post[:additionalData][:subMerchantID] = options[:sub_merchant_id] if options[:sub_merchant_id]
+        post[:additionalData][:subMerchantName] = options[:sub_merchant_name] if options[:sub_merchant_name]
+        post[:additionalData][:subMerchantStreet] = options[:sub_merchant_street] if options[:sub_merchant_street]
+        post[:additionalData][:subMerchantCity] = options[:sub_merchant_city] if options[:sub_merchant_city]
+        post[:additionalData][:subMerchantState] = options[:sub_merchant_state] if options[:sub_merchant_state]
+        post[:additionalData][:subMerchantPostalCode] = options[:sub_merchant_postal_code] if options[:sub_merchant_postal_code]
+        post[:additionalData][:subMerchantCountry] = options[:sub_merchant_country] if options[:sub_merchant_country]
+        post[:additionalData][:subMerchantTaxId] = options[:sub_merchant_tax_id] if options[:sub_merchant_tax_id]
+        post[:additionalData][:subMerchantMCC] = options[:sub_merchant_mcc] if options[:sub_merchant_mcc]
+        post[:additionalData] = post[:additionalData].merge(options[:sub_merchant_data]) if options[:sub_merchant_data]
       end
 
       def add_risk_data(post, options)
@@ -232,7 +266,7 @@ module ActiveMerchant #:nodoc:
         splits = []
         split_data.each do |split|
           amount = {
-            value: split['amount']['value'],
+            value: split['amount']['value']
           }
           amount[:currency] = split['amount']['currency'] if split['amount']['currency']
 
@@ -260,8 +294,10 @@ module ActiveMerchant #:nodoc:
         post[:shopperReference] = options[:shopper_reference] if options[:shopper_reference]
       end
 
-      def add_shopper_interaction(post, payment, options={})
-        if options.dig(:stored_credential, :initial_transaction) || (payment.respond_to?(:verification_value) && payment.verification_value) || payment.is_a?(NetworkTokenizationCreditCard)
+      def add_shopper_interaction(post, payment, options = {})
+        if  (options.dig(:stored_credential, :initial_transaction) && options.dig(:stored_credential, :initiator) == 'cardholder') ||
+            (payment.respond_to?(:verification_value) && payment.verification_value && options.dig(:stored_credential, :initial_transaction).nil?) ||
+            payment.is_a?(NetworkTokenizationCreditCard)
           shopper_interaction = 'Ecommerce'
         else
           shopper_interaction = 'ContAuth'
@@ -273,8 +309,12 @@ module ActiveMerchant #:nodoc:
       def add_recurring_processing_model(post, options)
         return unless options.dig(:stored_credential, :reason_type) || options[:recurring_processing_model]
 
-        if options.dig(:stored_credential, :reason_type) && options[:stored_credential][:reason_type] == 'unscheduled'
-          recurring_processing_model = 'CardOnFile'
+        if options.dig(:stored_credential, :reason_type) == 'unscheduled'
+          if options.dig(:stored_credential, :initiator) == 'merchant'
+            recurring_processing_model = 'UnscheduledCardOnFile'
+          else
+            recurring_processing_model = 'CardOnFile'
+          end
         else
           recurring_processing_model = 'Subscription'
         end
@@ -347,8 +387,8 @@ module ActiveMerchant #:nodoc:
           cvc: credit_card.verification_value
         }
 
-        card.delete_if { |k, v| v.blank? }
-        card[:holderName] ||= 'Not Provided' if credit_card.is_a?(NetworkTokenizationCreditCard)
+        card.delete_if { |_k, v| v.blank? }
+        card[:holderName] ||= 'Not Provided'
         requires!(card, :expiryMonth, :expiryYear, :holderName, :number)
         post[:card] = card
       end
@@ -359,14 +399,14 @@ module ActiveMerchant #:nodoc:
         options
       end
 
-      def add_reference(post, authorization, options = {})
-        _, psp_reference, _ = authorization.split('#')
-        post[:originalReference] = single_reference(authorization) || psp_reference
+      def add_network_transaction_reference(post, options)
+        post[:additionalData] = {} unless post[:additionalData]
+        post[:additionalData][:networkTxReference] = options[:network_transaction_id] if options[:network_transaction_id]
       end
 
-      def add_original_reference(post, authorization, options = {})
-        original_psp_reference, _, _ = authorization.split('#')
-        post[:originalReference] = single_reference(authorization) || original_psp_reference
+      def add_reference(post, authorization, options = {})
+        original_reference = authorization.split('#').reject(&:empty?).first
+        post[:originalReference] = original_reference
       end
 
       def add_mpi_data_for_network_tokenization_card(post, payment)
@@ -375,10 +415,6 @@ module ActiveMerchant #:nodoc:
         post[:mpiData][:cavv] = payment.payment_cryptogram
         post[:mpiData][:directoryResponse] = 'Y'
         post[:mpiData][:eci] = payment.eci || '07'
-      end
-
-      def single_reference(authorization)
-        authorization if !authorization.include?('#')
       end
 
       def add_recurring_contract(post, options = {})
@@ -412,10 +448,11 @@ module ActiveMerchant #:nodoc:
             post[:additionalData][:scaExemption] = options[:sca_exemption] if options[:sca_exemption]
           end
         else
-          return unless options[:execute_threed] || options[:threed_dynamic]
+          return unless !options[:execute_threed].nil? || !options[:threed_dynamic].nil?
 
-          post[:browserInfo] = { userAgent: options[:user_agent], acceptHeader: options[:accept_header] }
-          post[:additionalData] = { executeThreeD: 'true' } if options[:execute_threed]
+          post[:browserInfo] = { userAgent: options[:user_agent], acceptHeader: options[:accept_header] } if options[:execute_threed] || options[:threed_dynamic]
+          post[:additionalData] ||= {}
+          post[:additionalData][:executeThreeD] = options[:execute_threed] if !options[:execute_threed].nil?
         end
       end
 
@@ -471,7 +508,8 @@ module ActiveMerchant #:nodoc:
           raw_response = e.response.body
           response = parse(raw_response)
         end
-        success = success_from(action, response)
+
+        success = success_from(action, response, options)
         Response.new(
           success,
           message_from(action, response),
@@ -479,7 +517,8 @@ module ActiveMerchant #:nodoc:
           authorization: authorization_from(action, parameters, response),
           test: test?,
           error_code: success ? nil : error_code_from(response),
-          avs_result: AVSResult.new(:code => avs_code_from(response)),
+          network_transaction_id: network_transaction_id_from(response),
+          avs_result: AVSResult.new(code: avs_code_from(response)),
           cvv_result: CVVResult.new(cvv_result_from(response))
         )
       end
@@ -520,11 +559,15 @@ module ActiveMerchant #:nodoc:
         headers
       end
 
-      def success_from(action, response)
+      def success_from(action, response, options)
+        if %w[RedirectShopper ChallengeShopper].include?(response.dig('resultCode')) && !options[:execute_threed] && !options[:threed_dynamic]
+          response['refusalReason'] = 'Received unexpected 3DS authentication response. Use the execute_threed and/or threed_dynamic options to initiate a proper 3DS flow.'
+          return false
+        end
         case action.to_s
         when 'authorise', 'authorise3d'
-          ['Authorised', 'Received', 'RedirectShopper'].include?(response['resultCode'])
-        when 'capture', 'refund', 'cancel'
+          %w[Authorised Received RedirectShopper].include?(response['resultCode'])
+        when 'capture', 'refund', 'cancel', 'cancelOrRefund'
           response['response'] == "[#{action}-received]"
         when 'adjustAuthorisation'
           response['response'] == 'Authorised' || response['response'] == '[adjustAuthorisation-received]'
@@ -532,15 +575,17 @@ module ActiveMerchant #:nodoc:
           response['result'] == 'Success'
         when 'disable'
           response['response'] == '[detail-successfully-disabled]'
+        when 'refundWithData'
+          response['resultCode'] == 'Received'
         else
           false
         end
       end
 
       def message_from(action, response)
-        return authorize_message_from(response) if action.to_s == 'authorise' || action.to_s == 'authorise3d'
+        return authorize_message_from(response) if %w(authorise authorise3d authorise3ds2).include?(action.to_s)
 
-        response['response'] || response['message'] || response['result']
+        response['response'] || response['message'] || response['result'] || response['resultCode']
       end
 
       def authorize_message_from(response)
@@ -573,6 +618,10 @@ module ActiveMerchant #:nodoc:
 
       def error_code_from(response)
         STANDARD_ERROR_CODE_MAPPING[response['errorCode']]
+      end
+
+      def network_transaction_id_from(response)
+        response.dig('additionalData', 'networkTxReference')
       end
 
       def add_browser_info(browser_info, post)

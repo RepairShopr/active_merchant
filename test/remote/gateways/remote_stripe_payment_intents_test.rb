@@ -3,30 +3,45 @@ require 'test_helper'
 class RemoteStripeIntentsTest < Test::Unit::TestCase
   def setup
     @gateway = StripePaymentIntentsGateway.new(fixtures(:stripe))
-    @customer = fixtures(:stripe)[:customer_id]
+    @customer = fixtures(:stripe_verified_bank_account)[:customer_id]
     @amount = 2000
     @three_ds_payment_method = 'pm_card_threeDSecure2Required'
     @visa_payment_method = 'pm_card_visa'
     @declined_payment_method = 'pm_card_chargeDeclined'
     @three_ds_moto_enabled = 'pm_card_authenticationRequiredOnSetup'
     @three_ds_authentication_required = 'pm_card_authenticationRequired'
+    @three_ds_authentication_required_setup_for_off_session = 'pm_card_authenticationRequiredSetupForOffSession'
+    @three_ds_off_session_credit_card = credit_card('4000002500003155',
+      verification_value: '737',
+      month: 10,
+      year: 2022)
+    @three_ds_1_credit_card = credit_card('4000000000003063',
+      verification_value: '737',
+      month: 10,
+      year: 2021)
     @three_ds_credit_card = credit_card('4000000000003220',
       verification_value: '737',
       month: 10,
-      year: 2020
-    )
+      year: 2021)
+    @three_ds_not_required_card = credit_card('4000000000003055',
+      verification_value: '737',
+      month: 10,
+      year: 2021)
+    @three_ds_external_data_card = credit_card('4000002760003184',
+      verification_value: '737',
+      month: 10,
+      year: 2021)
     @visa_card = credit_card('4242424242424242',
       verification_value: '737',
       month: 10,
-      year: 2020
-    )
+      year: 2021)
     @destination_account = fixtures(:stripe_destination)[:stripe_user_id]
   end
 
   def test_authorization_and_void
     options = {
       currency: 'GBP',
-      customer: @customer,
+      customer: @customer
     }
     assert authorization = @gateway.authorize(@amount, @visa_payment_method, options)
 
@@ -40,7 +55,7 @@ class RemoteStripeIntentsTest < Test::Unit::TestCase
   def test_successful_purchase
     options = {
       currency: 'GBP',
-      customer: @customer,
+      customer: @customer
     }
     assert purchase = @gateway.purchase(@amount, @visa_payment_method, options)
 
@@ -48,15 +63,147 @@ class RemoteStripeIntentsTest < Test::Unit::TestCase
     assert purchase.params.dig('charges', 'data')[0]['captured']
   end
 
-  def test_unsuccessful_purchase
+  def test_purchases_with_same_idempotency_key
     options = {
       currency: 'GBP',
       customer: @customer,
+      idempotency_key: SecureRandom.hex
+    }
+    assert purchase1 = @gateway.purchase(@amount, @visa_payment_method, options)
+    assert_equal 'succeeded', purchase1.params['status']
+    assert purchase1.params.dig('charges', 'data')[0]['captured']
+
+    assert purchase2 = @gateway.purchase(@amount, @visa_payment_method, options)
+    assert purchase2.success?
+    assert_equal purchase1.authorization, purchase2.authorization
+    assert_equal purchase1.params['charges']['data'][0]['id'], purchase2.params['charges']['data'][0]['id']
+  end
+
+  def test_credit_card_purchases_with_same_idempotency_key
+    options = {
+      currency: 'GBP',
+      customer: @customer,
+      idempotency_key: SecureRandom.hex
+    }
+    assert purchase1 = @gateway.purchase(@amount, @visa_card, options)
+    assert_equal 'succeeded', purchase1.params['status']
+    assert purchase1.params.dig('charges', 'data')[0]['captured']
+
+    assert purchase2 = @gateway.purchase(@amount, @visa_card, options)
+    assert purchase2.success?
+    assert_equal purchase1.authorization, purchase2.authorization
+    assert_equal purchase1.params['charges']['data'][0]['id'], purchase2.params['charges']['data'][0]['id']
+  end
+
+  def test_purchases_with_same_idempotency_key_different_options
+    options = {
+      currency: 'GBP',
+      customer: @customer,
+      idempotency_key: SecureRandom.hex
+    }
+    assert purchase = @gateway.purchase(@amount, @visa_payment_method, options)
+    assert_equal 'succeeded', purchase.params['status']
+    assert purchase.params.dig('charges', 'data')[0]['captured']
+
+    options[:currency] = 'USD'
+    assert purchase = @gateway.purchase(@amount, @visa_payment_method, options)
+    refute purchase.success?
+    assert_match(/^Keys for idempotent requests can only be used with the same parameters they were first used with/, purchase.message)
+  end
+
+  def test_credit_card_purchases_with_same_idempotency_key_different_options
+    options = {
+      currency: 'GBP',
+      customer: @customer,
+      idempotency_key: SecureRandom.hex
+    }
+    assert purchase = @gateway.purchase(@amount, @visa_card, options)
+    assert_equal 'succeeded', purchase.params['status']
+    assert purchase.params.dig('charges', 'data')[0]['captured']
+
+    options[:currency] = 'USD'
+    assert purchase = @gateway.purchase(@amount, @visa_card, options)
+    refute purchase.success?
+    assert_match(/^Keys for idempotent requests can only be used with the same parameters they were first used with/, purchase.message)
+  end
+
+  def test_unsuccessful_purchase
+    options = {
+      currency: 'GBP',
+      customer: @customer
     }
     assert purchase = @gateway.purchase(@amount, @declined_payment_method, options)
 
     assert_equal 'Your card was declined.', purchase.message
     refute purchase.params.dig('error', 'payment_intent', 'charges', 'data')[0]['captured']
+  end
+
+  def test_successful_purchase_with_external_auth_data_3ds_1
+    options = {
+      currency: 'GBP',
+      three_d_secure: {
+        eci: '05',
+        cavv: '4BQwsg4yuKt0S1LI1nDZTcO9vUM=',
+        xid: 'd+NEBKSpEMauwleRhdrDY06qj4A='
+      }
+    }
+
+    assert purchase = @gateway.purchase(@amount, @three_ds_external_data_card, options)
+
+    assert_equal 'succeeded', purchase.params['status']
+    assert purchase.params.dig('charges', 'data')[0]['captured']
+  end
+
+  def test_successful_purchase_with_external_auth_data_3ds_2
+    options = {
+      currency: 'GBP',
+      three_d_secure: {
+        version: '2.1.0',
+        eci: '02',
+        cavv: 'jJ81HADVRtXfCBATEp01CJUAAAA=',
+        ds_transaction_id: 'f879ea1c-aa2c-4441-806d-e30406466d79'
+      }
+    }
+
+    assert purchase = @gateway.purchase(@amount, @three_ds_external_data_card, options)
+
+    assert_equal 'succeeded', purchase.params['status']
+    assert purchase.params.dig('charges', 'data')[0]['captured']
+  end
+
+  def test_successful_purchase_with_customer_token_and_external_auth_data_3ds_2
+    options = {
+      currency: 'GBP',
+      customer: @customer,
+      three_d_secure: {
+        version: '2.1.0',
+        eci: '02',
+        cavv: 'jJ81HADVRtXfCBATEp01CJUAAAA=',
+        ds_transaction_id: 'f879ea1c-aa2c-4441-806d-e30406466d79'
+      }
+    }
+
+    assert purchase = @gateway.purchase(@amount, @three_ds_authentication_required, options)
+
+    assert_equal 'succeeded', purchase.params['status']
+    assert purchase.params.dig('charges', 'data')[0]['captured']
+  end
+
+  def test_successful_authorization_with_external_auth_data_3ds_2
+    options = {
+      currency: 'GBP',
+      three_d_secure: {
+        version: '2.1.0',
+        eci: '02',
+        cavv: 'jJ81HADVRtXfCBATEp01CJUAAAA=',
+        ds_transaction_id: 'f879ea1c-aa2c-4441-806d-e30406466d79'
+      }
+    }
+
+    assert authorization = @gateway.authorize(@amount, @three_ds_external_data_card, options)
+
+    assert_equal 'requires_capture', authorization.params['status']
+    refute authorization.params.dig('charges', 'data')[0]['captured']
   end
 
   def test_create_payment_intent_manual_capture_method
@@ -102,7 +249,7 @@ class RemoteStripeIntentsTest < Test::Unit::TestCase
   def test_create_payment_intent_with_credit_card
     options = {
       currency: 'USD',
-      customer: @customer,
+      customer: @customer
     }
 
     assert response = @gateway.create_intent(@amount, @three_ds_credit_card, options)
@@ -116,7 +263,8 @@ class RemoteStripeIntentsTest < Test::Unit::TestCase
       currency: 'USD',
       customer: @customer,
       confirm: true,
-      return_url: 'https://www.example.com'
+      return_url: 'https://www.example.com',
+      execute_threed: true
     }
 
     assert response = @gateway.create_intent(@amount, @three_ds_credit_card, options)
@@ -185,11 +333,129 @@ class RemoteStripeIntentsTest < Test::Unit::TestCase
     options = {
       currency: 'USD',
       customer: @customer,
-      off_session: true,
+      off_session: true
     }
 
     assert response = @gateway.authorize(@amount, @three_ds_credit_card, options)
     assert_failure response
+  end
+
+  def test_create_setup_intent_with_setup_future_usage
+    [@three_ds_credit_card, @three_ds_authentication_required_setup_for_off_session].each do |card_to_use|
+      assert authorize_response = @gateway.create_setup_intent(card_to_use, {
+        address: {
+          email: 'test@example.com',
+          name: 'John Doe',
+          line1: '1 Test Ln',
+          city: 'Durham',
+          tracking_number: '123456789'
+        },
+        currency: 'USD',
+        confirm: true,
+        execute_threed: true,
+        return_url: 'https://example.com'
+      })
+
+      assert_equal 'requires_action', authorize_response.params['status']
+      assert_match 'https://hooks.stripe.com', authorize_response.params.dig('next_action', 'redirect_to_url', 'url')
+
+      # since we cannot "click" the stripe hooks URL to confirm the authorization
+      # we will at least confirm we can retrieve the created setup_intent and it contains the structure we expect
+      setup_intent_id = authorize_response.params['id']
+
+      assert si_reponse = @gateway.retrieve_setup_intent(setup_intent_id)
+      assert_equal 'requires_action', si_reponse.params['status']
+
+      assert_not_empty si_reponse.params.dig('latest_attempt', 'payment_method_details', 'card')
+      assert_nil si_reponse.params.dig('latest_attempt', 'payment_method_details', 'card', 'network_transaction_id')
+    end
+  end
+
+  def test_retrieving_error_for_non_existant_setup_intent
+    assert si_reponse = @gateway.retrieve_setup_intent('seti_does_not_exist')
+    assert_nil si_reponse.params['status']
+    assert_nil si_reponse.params.dig('latest_attempt', 'payment_method_details', 'card', 'network_transaction_id')
+
+    assert_match 'resource_missing', si_reponse.params.dig('error', 'code')
+    assert_match "No such setupintent: 'seti_does_not_exist'", si_reponse.params.dig('error', 'message')
+  end
+
+  def test_3ds_unauthenticated_authorize_with_off_session_requires_capture
+    [@three_ds_off_session_credit_card, @three_ds_authentication_required_setup_for_off_session].each do |card_to_use|
+      assert authorize_response = @gateway.authorize(@amount, card_to_use, {
+        address: {
+          email: 'test@example.com',
+          name: 'John Doe',
+          line1: '1 Test Ln',
+          city: 'Durham',
+          tracking_number: '123456789'
+        },
+        currency: 'USD',
+        confirm: true,
+        setup_future_usage: 'off_session',
+        execute_threed: true,
+        three_d_secure: {
+          version: '2.2.0',
+          eci: '02',
+          cavv: 'jJ81HADVRtXfCBATEp01CJUAAAA=',
+          ds_transaction_id: 'f879ea1c-aa2c-4441-806d-e30406466d79'
+        }
+      })
+
+      assert_success authorize_response
+      assert_equal 'requires_capture', authorize_response.params['status']
+      assert_not_empty authorize_response.params.dig('charges', 'data')[0]['payment_method_details']['card']['network_transaction_id']
+    end
+  end
+
+  def test_purchase_works_with_stored_credentials
+    [@three_ds_off_session_credit_card, @three_ds_authentication_required_setup_for_off_session].each do |card_to_use|
+      assert purchase = @gateway.purchase(@amount, card_to_use, {
+        currency: 'USD',
+        execute_threed: true,
+        confirm: true,
+        off_session: true,
+        stored_credential: {
+          network_transaction_id: '1098510912210968', # TEST env seems happy with any value :/
+          ds_transaction_id: 'null' # this is not req
+        }
+      })
+
+      assert_success purchase
+      assert_equal 'succeeded', purchase.params['status']
+      assert purchase.params.dig('charges', 'data')[0]['captured']
+    end
+  end
+
+  def test_purchase_works_with_stored_credentials_without_optional_ds_transaction_id
+    [@three_ds_off_session_credit_card, @three_ds_authentication_required_setup_for_off_session].each do |card_to_use|
+      assert purchase = @gateway.purchase(@amount, card_to_use, {
+        currency: 'USD',
+        execute_threed: true,
+        confirm: true,
+        off_session: true,
+        stored_credential: {
+          network_transaction_id: '1098510912210968', # TEST env seems happy with any value :/
+        }
+      })
+
+      assert_success purchase
+      assert_equal 'succeeded', purchase.params['status']
+      assert purchase.params.dig('charges', 'data')[0]['captured']
+    end
+  end
+
+  def test_purchase_fails_on_unexpected_3ds_initiation
+    options = {
+      currency: 'USD',
+      customer: @customer,
+      confirm: true,
+      return_url: 'https://www.example.com'
+    }
+
+    assert response = @gateway.purchase(100, @three_ds_credit_card, options)
+    assert_failure response
+    assert_match 'Received unexpected 3DS authentication response', response.message
   end
 
   def test_create_payment_intent_with_shipping_address
@@ -256,7 +522,7 @@ class RemoteStripeIntentsTest < Test::Unit::TestCase
       customer: @customer,
       return_url: 'https://www.example.com',
       confirmation_method: 'manual',
-      capture_method: 'manual',
+      capture_method: 'manual'
     }
     assert create_response = @gateway.create_intent(@amount, @three_ds_payment_method, options)
     assert_equal 'requires_confirmation', create_response.params['status']
@@ -284,6 +550,28 @@ class RemoteStripeIntentsTest < Test::Unit::TestCase
     assert capture_response = @gateway.capture(@amount, intent_id, options)
     assert_equal 'succeeded', capture_response.params['status']
     assert_equal 'Payment complete.', capture_response.params.dig('charges', 'data')[0].dig('outcome', 'seller_message')
+  end
+
+  def test_failed_create_a_payment_intent_with_set_error_on_requires_action
+    options = {
+      currency: 'GBP',
+      customer: @customer,
+      confirm: true,
+      error_on_requires_action: true
+    }
+    assert create_response = @gateway.create_intent(@amount, @three_ds_credit_card, options)
+    assert create_response.message.include?('This payment required an authentication action to complete, but `error_on_requires_action` was set.')
+  end
+
+  def test_successful_create_a_payment_intent_with_set_error_on_requires_action
+    options = {
+      currency: 'GBP',
+      customer: @customer,
+      confirm: true,
+      error_on_requires_action: true
+    }
+    assert create_response = @gateway.create_intent(@amount, @visa_payment_method, options)
+    assert_equal 'succeeded', create_response.params['status']
   end
 
   def test_amount_localization
@@ -358,7 +646,7 @@ class RemoteStripeIntentsTest < Test::Unit::TestCase
       currency: 'XPF',
       customer: @customer,
       confirmation_method: 'manual',
-      capture_method: 'manual',
+      capture_method: 'manual'
     }
     assert create_response = @gateway.create_intent(amount, @visa_payment_method, options)
     intent_id = create_response.params['id']
@@ -382,6 +670,31 @@ class RemoteStripeIntentsTest < Test::Unit::TestCase
 
     assert cancel_response = @gateway.void(intent_id, cancellation_reason: 'requested_by_customer')
     assert_equal @amount, cancel_response.params.dig('charges', 'data')[0].dig('amount_refunded')
+    assert_equal 'canceled', cancel_response.params['status']
+    assert_equal 'requested_by_customer', cancel_response.params['cancellation_reason']
+  end
+
+  def test_create_a_payment_intent_and_void_requires_unique_idempotency_key
+    idempotency_key = SecureRandom.hex
+    options = {
+      currency: 'GBP',
+      customer: @customer,
+      return_url: 'https://www.example.com',
+      confirmation_method: 'manual',
+      capture_method: 'manual',
+      idempotency_key: idempotency_key
+    }
+    assert create_response = @gateway.create_intent(@amount, @three_ds_payment_method, options)
+    assert_equal 'requires_confirmation', create_response.params['status']
+    intent_id = create_response.params['id']
+
+    assert get_response = @gateway.show_intent(intent_id, options)
+    assert_equal 'requires_confirmation', get_response.params['status']
+
+    assert_failure cancel_response = @gateway.void(intent_id, cancellation_reason: 'requested_by_customer', idempotency_key: idempotency_key)
+    assert_match(/^Keys for idempotent requests can only be used for the same endpoint they were first used for/, cancel_response.message)
+
+    assert cancel_response = @gateway.void(intent_id, cancellation_reason: 'requested_by_customer', idempotency_key: "#{idempotency_key}-auto-void")
     assert_equal 'canceled', cancel_response.params['status']
     assert_equal 'requested_by_customer', cancel_response.params['cancellation_reason']
   end
@@ -424,9 +737,42 @@ class RemoteStripeIntentsTest < Test::Unit::TestCase
     assert_equal refund.authorization, refund_id
   end
 
-  def test_successful_store_purchase_and_unstore
+  def test_refund_when_payment_intent_not_captured
     options = {
       currency: 'GBP',
+      customer: @customer,
+      confirmation_method: 'manual',
+      capture_method: 'manual',
+      confirm: true
+    }
+    assert create_response = @gateway.create_intent(@amount, @visa_payment_method, options)
+    intent_id = create_response.params['id']
+
+    refund = @gateway.refund(@amount - 20, intent_id)
+    assert_failure refund
+    assert refund.params['error']
+  end
+
+  def test_refund_when_payment_intent_requires_action
+    options = {
+      currency: 'GBP',
+      customer: @customer,
+      confirmation_method: 'manual',
+      capture_method: 'manual',
+      confirm: true
+    }
+    assert create_response = @gateway.create_intent(@amount, @three_ds_authentication_required, options)
+    assert_equal 'requires_action', create_response.params['status']
+    intent_id = create_response.params['id']
+
+    refund = @gateway.refund(@amount - 20, intent_id)
+    assert_failure refund
+    assert_match(/has a status of requires_action/, refund.message)
+  end
+
+  def test_successful_store_purchase_and_unstore
+    options = {
+      currency: 'GBP'
     }
     assert store = @gateway.store(@visa_card, options)
     assert store.params['customer'].start_with?('cus_')
@@ -438,10 +784,66 @@ class RemoteStripeIntentsTest < Test::Unit::TestCase
     assert_nil unstore.params['customer']
   end
 
+  def test_successful_store_with_idempotency_key
+    idempotency_key = SecureRandom.hex
+
+    options = {
+      currency: 'GBP',
+      idempotency_key: idempotency_key
+    }
+
+    assert store1 = @gateway.store(@visa_card, options)
+    assert store1.success?
+    assert store1.params['customer'].start_with?('cus_')
+
+    assert store2 = @gateway.store(@visa_card, options)
+    assert store2.success?
+    assert_equal store1.authorization, store2.authorization
+    assert_equal store1.params['id'], store2.params['id']
+  end
+
+  def test_successful_store_with_false_validate_option
+    options = {
+      currency: 'GBP',
+      validate: false
+    }
+    assert store = @gateway.store(@visa_card, options)
+    assert store.params['customer'].start_with?('cus_')
+    assert_equal 'unchecked', store.params['card']['checks']['cvc_check']
+  end
+
+  def test_successful_store_with_true_validate_option
+    options = {
+      currency: 'GBP',
+      validate: true
+    }
+    assert store = @gateway.store(@visa_card, options)
+    assert store.params['customer'].start_with?('cus_')
+    assert_equal 'pass', store.params['card']['checks']['cvc_check']
+  end
+
+  def test_successful_verify
+    options = {
+      customer: @customer
+    }
+    assert verify = @gateway.verify(@visa_payment_method, options)
+
+    assert_equal 'succeeded', verify.params['status']
+  end
+
+  def test_failed_verify
+    options = {
+      customer: @customer
+    }
+    assert verify = @gateway.verify(@declined_payment_method, options)
+
+    assert_equal 'Your card was declined.', verify.message
+  end
+
   def test_moto_enabled_card_requires_action_when_not_marked
     options = {
       currency: 'GBP',
-      confirm: true,
+      confirm: true
     }
     assert purchase = @gateway.purchase(@amount, @three_ds_moto_enabled, options)
 
@@ -452,7 +854,7 @@ class RemoteStripeIntentsTest < Test::Unit::TestCase
     options = {
       currency: 'GBP',
       confirm: true,
-      moto: true,
+      moto: true
     }
     assert purchase = @gateway.purchase(@amount, @three_ds_moto_enabled, options)
 
@@ -464,7 +866,7 @@ class RemoteStripeIntentsTest < Test::Unit::TestCase
     options = {
       currency: 'GBP',
       confirm: true,
-      moto: true,
+      moto: true
     }
     assert purchase = @gateway.purchase(@amount, @three_ds_authentication_required, options)
 
@@ -472,12 +874,26 @@ class RemoteStripeIntentsTest < Test::Unit::TestCase
     assert_equal 'Your card was declined. This transaction requires authentication.', purchase.message
   end
 
+  def test_request_three_d_secure
+    options = {
+      currency: 'GBP',
+      request_three_d_secure: 'any'
+    }
+    assert purchase = @gateway.purchase(@amount, @three_ds_not_required_card, options)
+    assert_equal 'requires_action', purchase.params['status']
+
+    options = {
+      currency: 'GBP'
+    }
+    assert purchase = @gateway.purchase(@amount, @three_ds_not_required_card, options)
+    assert_equal 'succeeded', purchase.params['status']
+  end
+
   def test_transcript_scrubbing
     options = {
       currency: 'GBP',
       customer: @customer,
       confirmation_method: 'manual',
-      capture_method: 'manual',
       return_url: 'https://www.example.com/return',
       confirm: true
     }

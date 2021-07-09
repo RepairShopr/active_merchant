@@ -2,37 +2,37 @@ require 'test_helper'
 
 class RemoteMerchantWarriorTest < Test::Unit::TestCase
   def setup
-    @gateway = MerchantWarriorGateway.new(fixtures(:merchant_warrior).merge(:test => true))
+    @gateway = MerchantWarriorGateway.new(fixtures(:merchant_warrior).merge(test: true))
 
     @success_amount = 100
     @failure_amount = 205
 
     @credit_card = credit_card(
       '4564710000000004',
-      :month => '2',
-      :year => '29',
-      :verification_value => '847',
-      :brand => 'visa'
+      month: '2',
+      year: '29',
+      verification_value: '847',
+      brand: 'visa'
     )
 
     @expired_card = credit_card(
       '4564710000000012',
-      :month => '2',
-      :year => '05',
-      :verification_value => '963',
-      :brand => 'visa'
+      month: '2',
+      year: '05',
+      verification_value: '963',
+      brand: 'visa'
     )
 
     @options = {
-      :billing_address => {
-        :name => 'Longbob Longsen',
-        :country => 'AU',
-        :state => 'Queensland',
-        :city => 'Brisbane',
-        :address1 => '123 test st',
-        :zip => '4000'
+      billing_address: {
+        name: 'Longbob Longsen',
+        country: 'AU',
+        state: 'Queensland',
+        city: 'Brisbane',
+        address1: '123 test st',
+        zip: '4000'
       },
-      :description => 'TestProduct'
+      description: 'TestProduct'
     }
   end
 
@@ -145,6 +145,27 @@ class RemoteMerchantWarriorTest < Test::Unit::TestCase
   def test_successful_authorize_with_recurring_flag
     @options[:recurring_flag] = 1
     test_successful_authorize
+  end
+
+  def test_successful_authorize_with_soft_descriptors
+    @options[:descriptor_name] = 'FOO*Test'
+    @options[:descriptor_city] = 'Melbourne'
+    @options[:descriptor_state] = 'VIC'
+    test_successful_authorize
+  end
+
+  def test_successful_purchase_with_soft_descriptors
+    @options[:descriptor_name] = 'FOO*Test'
+    @options[:descriptor_city] = 'Melbourne'
+    @options[:descriptor_state] = 'VIC'
+    test_successful_purchase
+  end
+
+  def test_successful_refund_with_soft_descriptors
+    @options[:descriptor_name] = 'FOO*Test'
+    @options[:descriptor_city] = 'Melbourne'
+    @options[:descriptor_state] = 'VIC'
+    test_successful_refund
   end
 
   def test_transcript_scrubbing
