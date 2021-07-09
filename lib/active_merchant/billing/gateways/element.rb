@@ -201,7 +201,7 @@ module ActiveMerchant #:nodoc:
             add_credentials(xml)
             add_payment_method(xml, credit_card)
             add_transaction(xml, 0, options)
-            add_terminal(xml, options)
+            add_card_terminal(xml, options)
             add_address(xml, options)
           end
         end
