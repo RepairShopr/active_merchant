@@ -207,7 +207,7 @@ module ActiveMerchant #:nodoc:
         end
 
         # send request with the transaction amount set to 0
-        commit('CreditCardAVSOnly', request, 0)
+        commit('CreditCardAVSOnly', request)
       end
 
       # Extended API, in particular necessary to query the long-processing Check/ACH transactions
